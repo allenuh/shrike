@@ -30,6 +30,52 @@ Read `README.md`, `docs/PRD.md`, `docs/ARCHITECTURE.md`, and `docs/ROADMAP.md` b
 - Keep local tests offline with a deterministic mock LLM and mock GitHub adapter. Do not make real external API calls or create infrastructure without task authorization.
 - Keep GitHub, AI, persistence, and queue implementations behind their documented interfaces. Never place backend credentials in the web bundle or `NEXT_PUBLIC_*` variables.
 
+## Git commit policy
+
+Conventional Commits is mandatory for all new Shrike commits. Follow the [Conventional Commits 1.0.0 specification](https://www.conventionalcommits.org/en/v1.0.0/) and the project rules below.
+
+Use these subject formats; scopes are optional:
+
+```text
+<type>: <imperative description>
+<type>(<scope>): <imperative description>
+```
+
+The colon immediately follows the type, scope, or breaking-change marker, with exactly one space after it. Do not insert a space before the colon.
+
+Allowed types:
+
+| Type | Purpose |
+| --- | --- |
+| `feat` | New feature |
+| `fix` | Bug fix |
+| `refactor` | Code restructuring without behavior changes |
+| `perf` | Performance improvement |
+| `test` | Test additions or corrections |
+| `docs` | Documentation changes |
+| `style` | Formatting changes without behavior changes |
+| `build` | Build system or dependencies |
+| `ci` | CI/CD workflows |
+| `chore` | General maintenance |
+
+Preferred scopes: `api`, `web`, `github`, `ai`, `worker`, `db`, `infra`, `auth`, `deps`. Omit the scope for repository-wide changes; use the most relevant scope when one applies.
+
+1. Use lowercase types and scopes.
+2. Keep subject lines concise, ideally no more than 72 characters, including the type and optional scope.
+3. Use the imperative mood, such as `add`, `fix`, or `update`, rather than `added`, `fixed`, or `updated`.
+4. Do not end the subject with a period.
+5. Each commit must represent one logically cohesive change.
+6. Include a commit body for complex changes explaining why the change was made. Separate the body from the subject with a blank line.
+7. Mark breaking changes with `!` immediately before the colon and/or an uppercase `BREAKING CHANGE: <explanation>` footer. For example, `feat(api)!: require versioned review requests`. Separate footers from the preceding body or subject with a blank line.
+8. Do not combine unrelated features into one commit; split unrelated work into separate commits.
+9. Commit only after relevant tests and checks pass. Apply the documentation-only validation guidance above when appropriate. If a required check fails or cannot run, report the blocker and do not claim the change is ready to commit.
+10. Before committing, check `git status`, inspect the staged file list and `git diff --cached`, and run `git diff --cached --check`. Confirm that only authorized changes are staged.
+11. Never commit secrets, credentials, real environment files (including `.env` and environment-specific variants), or generated build artifacts. A deliberately tracked example such as `.env.example` may contain placeholders only; review it before staging.
+12. Do not amend or rewrite existing commits unless explicitly requested.
+13. Do not push to a remote repository unless explicitly requested.
+14. At the end of every implementation task, propose an appropriate Conventional Commit message. If an authorized commit was created, report its actual message and commit ID.
+15. Make commits only when the user has requested a commit or explicitly authorized automatic commits for that task. Proposing a message or completing a milestone does not itself authorize a commit.
+
 ## Task completion report
 
 After each task, summarize changed files and behavior, checks actually run with their outcomes, remaining issues and risks, and manual steps still required. Do not claim the entire platform or a phase is complete based on scaffolding alone.
