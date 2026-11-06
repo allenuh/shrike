@@ -1,5 +1,6 @@
 """Explicit process configuration; deliberately never loads a checkout's .env."""
 
+from pathlib import Path
 from typing import Literal
 
 from pydantic import Field, SecretStr, model_validator
@@ -35,6 +36,28 @@ class Settings(BaseSettings):
     enable_dev_auth: bool = Field(default=False, validation_alias="ENABLE_DEV_AUTH")
     dev_auth_token: SecretStr = Field(default=SecretStr(""), validation_alias="DEV_AUTH_TOKEN")
     dev_repository_grants: str = Field(default="", validation_alias="DEV_REPOSITORY_GRANTS")
+    github_webhooks_enabled: bool = Field(default=False, validation_alias="GITHUB_WEBHOOKS_ENABLED")
+    github_mode: Literal["disabled", "live"] = Field(
+        default="disabled", validation_alias="GITHUB_MODE"
+    )
+    github_app_id: int = Field(default=0, ge=0, lt=2**63, validation_alias="GITHUB_APP_ID")
+    github_app_client_id: str | None = Field(default=None, validation_alias="GITHUB_APP_CLIENT_ID")
+    github_app_private_key_path: Path | None = Field(
+        default=None, repr=False, validation_alias="GITHUB_APP_PRIVATE_KEY_PATH"
+    )
+    github_webhook_secret: SecretStr = Field(
+        default=SecretStr(""), validation_alias="GITHUB_WEBHOOK_SECRET"
+    )
+    webhook_max_bytes: int = Field(
+        default=1048576, ge=1024, le=4194304, validation_alias="WEBHOOK_MAX_BYTES"
+    )
+    review_max_files: int = Field(default=20, ge=1, le=1000, validation_alias="REVIEW_MAX_FILES")
+    review_max_file_bytes: int = Field(
+        default=204800, ge=1, le=1048576, validation_alias="REVIEW_MAX_FILE_BYTES"
+    )
+    review_max_diff_bytes: int = Field(
+        default=524288, ge=1, le=4194304, validation_alias="REVIEW_MAX_DIFF_BYTES"
+    )
 
     @model_validator(mode="after")
     def validate_security(self) -> "Settings":
@@ -53,4 +76,12 @@ class Settings(BaseSettings):
                     "Development authentication requires a generated 32+ character token"
                 )
             parse_grants(self.dev_repository_grants)
+        if self.github_webhooks_enabled:
+            secret = self.github_webhook_secret.get_secret_value()
+            if self.github_app_id <= 0 or not 32 <= len(secret) <= 512 or secret.startswith("<"):
+                raise ValueError("Webhooks require an App ID and generated webhook secret")
+        if self.github_mode == "live" and (
+            self.github_app_id <= 0 or self.github_app_private_key_path is None
+        ):
+            raise ValueError("Live GitHub requires explicit App ID and private key path")
         return self

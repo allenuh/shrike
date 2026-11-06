@@ -28,6 +28,7 @@ from .schemas import (
     RepositoryQuery,
     RepositoryResponse,
 )
+from .webhooks import router as webhook_router
 
 
 def create_app(settings: Settings | None = None, database: Database | None = None) -> FastAPI:
@@ -55,6 +56,7 @@ def create_app(settings: Settings | None = None, database: Database | None = Non
     )
     app.state.settings, app.state.database = config, db
     register_errors(app)
+    app.include_router(webhook_router)
 
     @app.middleware("http")
     async def request_metadata(request: Request, call_next: RequestResponseEndpoint) -> Response:
@@ -84,7 +86,7 @@ def create_app(settings: Settings | None = None, database: Database | None = Non
     def ready() -> dict[str, str]:
         with db.session() as session:
             revision = session.scalar(text("SELECT version_num FROM alembic_version"))
-        if revision != "0001_core":
+        if revision != "0002_github":
             raise ApiError(503, "schema_not_ready", "Database schema is not ready")
         return {"status": "ready"}
 

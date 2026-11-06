@@ -1,6 +1,6 @@
 # Local backend development and verification
 
-Scope: Phase 2 persistence and read APIs only. All data from the seed is synthetic, including mock finding/execution metadata. There is no real GitHub login, webhook ingestion, LLM/scanner execution, worker, or frontend in this phase.
+Scope: the offline synthetic persistence/read-API demo. All seeded data is invented. Optional Phase 3 GitHub ingestion uses a separate integration database and is documented in [github-app-manual.md](github-app-manual.md). There is no real user login, LLM/scanner execution, publishing, or frontend. Leave GitHub modes disabled for this synthetic demo.
 
 ## Prerequisites and dependency setup
 
@@ -39,7 +39,7 @@ To verify migration upgrade, metadata agreement, downgrade, and re-upgrade witho
 uv --cache-dir .cache/uv run --locked python scripts/test_backend.py -q tests/integration/test_migrations.py::test_upgrade_downgrade_upgrade_and_metadata_agreement
 ```
 
-The initial `downgrade base` drops all six application tables and their content. Use the disposable runner for this verification. Migrations are never automatically applied on API startup.
+The current `downgrade base` drops all seven application tables and their content. Downgrading only to `0001_core` removes ingestion receipts/access metadata while retaining Phase 2 data. Use disposable databases for this verification. Migrations are never automatically applied on API startup.
 
 ## Start the synthetic demo
 
@@ -49,6 +49,8 @@ Run these commands in one PowerShell session. Generate secrets without printing 
 $env:SHRIKE_LOCAL_DB_PASSWORD = [Guid]::NewGuid().ToString('N')
 $env:DEV_AUTH_TOKEN = [Guid]::NewGuid().ToString('N')
 $env:APP_ENV = 'development'
+$env:GITHUB_MODE = 'disabled'
+$env:GITHUB_WEBHOOKS_ENABLED = 'false'
 $env:ENABLE_DEV_AUTH = 'true'
 $env:DEV_REPOSITORY_GRANTS = '710001:810001'
 $env:DATABASE_URL = 'postgresql+psycopg://shrike:{0}@127.0.0.1:55432/shrike_demo' -f $env:SHRIKE_LOCAL_DB_PASSWORD
@@ -73,7 +75,7 @@ uv --cache-dir .cache/uv run --locked uvicorn shrike_api.main:create_app --facto
 
 The API is available at `http://127.0.0.1:8000`; development OpenAPI documentation is at `/docs`. Only the synthetic payments repository is granted by the configuration above. The sibling repository and the other installation's repository are intentionally hidden. To inspect the sibling's canceled job, deliberately add `710001:810002` to the server-side grant list and restart. A resource query or `X-Installation-ID` header cannot add access.
 
-Default configuration denies protected routes. Development auth cannot be enabled in production; real GitHub OAuth/session integration remains future work. Bind locally and do not publish this demo API to the Internet. Tokens must be 32–512 characters, not placeholders. There is no browser frontend in this phase.
+Default configuration denies protected routes. Development auth cannot be enabled in production; real GitHub OAuth/session integration remains future work. Bind locally and do not publish this demo API to the Internet. Tokens must be 32â€“512 characters, not placeholders. There is no browser frontend in this phase.
 
 ## Manually inspect responses
 
@@ -103,7 +105,7 @@ Expected: one authorized repository, a completed job with three findings and one
 
 Lists accept `limit=1..100` (default 20), `order=asc|desc` (default descending), and an opaque `cursor`. State ordering is alphabetical; severity ordering uses info < low < medium < high < critical. Every sort includes UUID as a tie-breaker. Detail findings use the default severity-descending order and first 20 records; follow their `next_cursor` through the findings route with the same filters/order. Encode the cursor as a query parameter, and keep filters/order/access scope unchanged; changing them returns `422`. Limit may change between pages. Pagination is a live keyset view, not an immutable multi-request snapshot.
 
-Invalid filters, naive/reversed date ranges, malformed cursors, and unknown query parameters return sanitized `422` error envelopes. Errors have `error.code`, `error.message`, and `error.request_id`; the generated ID also appears in `X-Request-ID`. Database errors return sanitized `503`; unexpected errors return `500`. Liveness is process-only; readiness requires database connectivity and revision `0001_core`.
+Invalid filters, naive/reversed date ranges, malformed cursors, and unknown query parameters return sanitized `422` error envelopes. Errors have `error.code`, `error.message`, and `error.request_id`; the generated ID also appears in `X-Request-ID`. Database errors return sanitized `503`; unexpected errors return `500`. Liveness is process-only; readiness requires database connectivity and revision `0002_github`.
 
 Structured request logs contain a generated request ID, HTTP method category, status, and duration. They omit URL/query strings, headers, repository paths, findings, raw exceptions, and database parameters. Uvicorn's default access logger is disabled by the factory as well as by the documented command. Do not enable SQL echo, request-body logging, or debug tracebacks for private data.
 

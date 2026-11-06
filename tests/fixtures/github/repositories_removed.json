@@ -1,0 +1,11 @@
+{
+  "action": "removed",
+  "installation": {
+    "id": 710001, "app_id": 12345,
+    "account": {"id": 610001, "login": "shrike-demo", "type": "Organization"},
+    "repository_selection": "selected", "suspended_at": null
+  },
+  "repositories_added": [],
+  "repositories_removed": [{"id": 810001, "name": "payments-api", "full_name": "shrike-demo/payments-api", "private": true}],
+  "sender": {"id": 510001, "login": "synthetic-maintainer", "type": "User"}
+}

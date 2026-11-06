@@ -18,6 +18,8 @@ def main() -> None:
         url = make_url(settings.database_url.get_secret_value())
         if (
             settings.app_env != "development"
+            or settings.github_mode != "disabled"
+            or settings.github_webhooks_enabled
             or url.database != "shrike_demo"
             or url.host not in {"localhost", "127.0.0.1", "::1"}
         ):

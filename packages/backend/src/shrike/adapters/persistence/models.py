@@ -3,6 +3,7 @@
 import uuid
 from datetime import datetime
 from enum import StrEnum
+from typing import Any
 
 from sqlalchemy import (
     BigInteger,
@@ -21,6 +22,7 @@ from sqlalchemy import (
     Uuid,
     func,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from shrike.domain.states import (
@@ -76,6 +78,8 @@ class Installation(IdentityMixin, Base):
     status: Mapped[InstallationStatus] = mapped_column(
         enum_column(InstallationStatus, "installation_status"), default=InstallationStatus.ACTIVE
     )
+    github_verified: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    access_generation: Mapped[int] = mapped_column(BigInteger, default=0, server_default="0")
 
 
 class Repository(IdentityMixin, Base):
@@ -97,6 +101,7 @@ class Repository(IdentityMixin, Base):
     status: Mapped[RepositoryStatus] = mapped_column(
         enum_column(RepositoryStatus, "repository_status"), default=RepositoryStatus.ACTIVE
     )
+    access_blocked: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
 
 
 class PullRequest(IdentityMixin, Base):
@@ -238,3 +243,36 @@ class ReviewExecution(IdentityMixin, Base):
     error_code: Mapped[str | None] = mapped_column(String(64))
     # Operational identifiers are intentionally absent from public response models.
     worker_identifier: Mapped[str | None] = mapped_column(String(128))
+
+
+class WebhookDelivery(IdentityMixin, Base):
+    __tablename__ = "webhook_deliveries"
+    __table_args__ = (
+        CheckConstraint(
+            "state IN ('pending','processing','completed','ignored','failed')", name="state"
+        ),
+        CheckConstraint("attempts BETWEEN 0 AND 3", name="attempts"),
+        CheckConstraint("body_digest ~ '^[0-9a-f]{64}$'", name="body_digest"),
+        CheckConstraint(
+            "(state='processing' AND lease_token IS NOT NULL AND lease_expires_at IS NOT NULL) OR "
+            "(state<>'processing' AND lease_token IS NULL AND lease_expires_at IS NULL)",
+            name="lease_state",
+        ),
+        Index("ix_webhook_due", "state", "available_at", "lease_expires_at"),
+    )
+    delivery_id: Mapped[str] = mapped_column(String(36), unique=True)
+    event_type: Mapped[str] = mapped_column(String(64))
+    body_digest: Mapped[str] = mapped_column(String(64))
+    installation_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("installations.id", ondelete="RESTRICT")
+    )
+    routing: Mapped[dict[str, Any]] = mapped_column(JSONB)
+    state: Mapped[str] = mapped_column(String(12), default="pending")
+    reason: Mapped[str | None] = mapped_column(String(64))
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    available_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    lease_token: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    lease_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

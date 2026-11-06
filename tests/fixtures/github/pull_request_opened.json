@@ -1,0 +1,32 @@
+{
+  "action": "opened",
+  "number": 101,
+  "installation": {"id": 710001, "node_id": "synthetic-installation"},
+  "repository": {
+    "id": 810001, "name": "payments-api", "full_name": "shrike-demo/payments-api",
+    "private": true, "archived": false,
+    "owner": {"id": 610001, "login": "shrike-demo", "type": "Organization"}
+  },
+  "pull_request": {
+    "id": 910101, "number": 101, "state": "open", "draft": false,
+    "title": "Synthetic fixture: validate payment amounts",
+    "body": "SYNTHETIC_PRIVATE_BODY_SENTINEL: this invented text must not be persisted or logged",
+    "changed_files": 1,
+    "base": {
+      "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "ref": "main",
+      "repo": {
+        "id": 810001, "name": "payments-api", "private": true,
+        "owner": {"id": 610001, "login": "shrike-demo", "type": "Organization"}
+      }
+    },
+    "head": {
+      "sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "ref": "validate-amount",
+      "repo": {
+        "id": 810001, "name": "payments-api", "private": true,
+        "owner": {"id": 610001, "login": "shrike-demo", "type": "Organization"}
+      }
+    }
+  },
+  "sender": {"id": 510001, "login": "synthetic-contributor", "type": "User"}
+}

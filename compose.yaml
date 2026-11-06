@@ -7,7 +7,7 @@ services:
       POSTGRES_USER: shrike
       POSTGRES_PASSWORD: ${SHRIKE_LOCAL_DB_PASSWORD:?Generate and export a local password}
     ports:
-      - "127.0.0.1:55432:5432"
+      - "127.0.0.1:${SHRIKE_LOCAL_DB_PORT:-55432}:5432"
     volumes:
       - shrike_demo_postgres:/var/lib/postgresql/data
     healthcheck:

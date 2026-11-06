@@ -2,7 +2,7 @@
 
 Shrike is an AI-assisted GitHub code review platform under development. The planned workflow will validate GitHub App webhooks, queue Python-focused reviews, combine Ruff and Semgrep findings with validated LLM suggestions, and publish feedback to GitHub. A dashboard will show history, findings, and metrics.
 
-**Current status: Phase 2 backend persistence and read APIs.** SQLAlchemy models, Alembic migrations, installation/repository-scoped FastAPI reads, synthetic demo data, and disposable PostgreSQL tests are implemented. There is no frontend, live webhook processing, worker pipeline, AI integration, CI workflow, or deployed infrastructure yet. Compose currently provides only the development database.
+**Current status: Phase 3 GitHub App integration and PR ingestion, verified with mocks.** The backend has scoped read APIs, SQLAlchemy/Alembic persistence, raw-byte webhook authentication, a durable inbox, a metadata ingestion worker, and a read-only GitHub App client. Live account setup and a real GitHub smoke test remain manual and unperformed. There is no frontend, review executor, analyzer/LLM integration, publishing, Redis/Celery transport, CI workflow, or cloud deployment yet. Compose provides the development database.
 
 ## Project documents
 
@@ -12,6 +12,8 @@ Shrike is an AI-assisted GitHub code review platform under development. The plan
 - [Agent instructions](AGENTS.md): rules for future implementation tasks.
 - [Backend setup and manual verification](docs/runbooks/backend-local.md): exact local commands.
 - [Phase scope decision](docs/adr/0001-persistence-phase-scope.md): the user-requested Phase 2 rebaseline.
+- [GitHub App manual setup](docs/runbooks/github-app-manual.md): registration, read permissions, keys, tunnel, selected installation, and optional real smoke test.
+- [Ingestion design decision](docs/adr/0002-github-ingestion.md): durable acceptance, canonical verification, and deferred broker/fork support.
 
 ## Planned stack
 
@@ -46,12 +48,12 @@ uv --cache-dir .cache/uv run --locked python scripts/test_backend.py -q
 
 The test runner creates a unique temporary PostgreSQL container and a disposable database per integration test, then removes them. It does not use the demo database or existing `.env`. Initial dependency/image downloads need registry access; test execution makes no GitHub, LLM, or paid-service calls. See the runbook for running unit tests without Docker.
 
-The API denies access by default. Development authentication requires an explicit opt-in, generated bearer token, and server-side installation/repository grants. Real GitHub login remains deferred; this phase must not be exposed as a production user-facing service.
+Protected history APIs deny access by default. Development authentication requires an explicit opt-in, generated bearer token, and server-side installation/repository grants. Webhooks are disabled by default and use independent HMAC authentication when configured. Installing the App never grants all dashboard users access. Real GitHub user login remains deferred; this is not a production user-facing service.
 
-A real GitHub App and a publicly reachable HTTPS webhook URL will be needed only for an explicitly authorized integration smoke test. App registration, permission selection, callback URLs, secret generation, and an optional tunnel will be documented as manual steps. They have not been performed.
+A real GitHub App and publicly reachable HTTPS webhook URL are needed only when you deliberately configure live integration. Follow the separate manual runbook; no account setup or real App API calls were performed by Codex. Fork PRs and deleted fork heads are excluded. Reinstallation/transfers with existing ownership history are quarantined until a migration design supports them.
 
 ## Implementation order
 
-The user requested persistence/read APIs before event processing. Remaining foundations, deferred webhook durability (Phase 2B), safe static analysis, mock-assisted review, GitHub publication, and the authenticated dashboard remain separate phases. Complete local hardening before cloud work. See the [roadmap](docs/ROADMAP.md) for phase boundaries and evidence.
+The user requested persistence/read APIs as Phase 2 and GitHub App ingestion as Phase 3. Remaining foundations, Redis/Celery dispatch, safe static analysis (Phase 3B), mock-assisted review, publishing, and the authenticated dashboard remain separate work. Complete local hardening before cloud work. See the [roadmap](docs/ROADMAP.md) for evidence. Meaningful verified tasks are committed automatically; completed verified phases are pushed under the standing policy in `AGENTS.md`.
 
 Shrike will not run repository code, install repository dependencies, apply automatic fixes, or treat LLM output as trusted instructions. Reviews are advisory and will not gate merges in the MVP.

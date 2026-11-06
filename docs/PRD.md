@@ -1,6 +1,6 @@
 # Shrike product requirements
 
-Status: product requirements, planning baseline dated 2026-11-06. Phase 2 implements the persistence/read-API slice with synthetic data and development-only access. The full GitHub/AI/dashboard workflow remains proposed; [ROADMAP.md](ROADMAP.md) records actual verification and deferred work.
+Status: product requirements, planning baseline dated 2026-11-06. Phase 2 implements persistence/read APIs; Phase 3 implements secure GitHub App ingestion, verified with mocks. Real account setup remains manual, and the complete analysis/publishing/dashboard workflow remains proposed. [ROADMAP.md](ROADMAP.md) records evidence and deferred work.
 
 ## Problem and outcome
 
@@ -28,7 +28,7 @@ Supported events beyond PR actions are `ping`, `installation`, and `installation
 
 ## MVP scope
 
-- A GitHub.com App installed on selected repositories, including private repositories and fork PRs when the installation can access required content. GitHub Enterprise Server is deferred.
+- A GitHub.com App installed on selected repositories, including private repositories and same-repository PRs. Phase 3 excludes all cross-repository/deleted-head forks; support requires an explicitly approved handling design. GitHub Enterprise Server is deferred.
 - Python-only changed-file analysis. Non-Python, binary, generated, vendor, symlink, submodule, oversized, deleted, and unavailable files are counted as skipped with reasons.
 - Current PR base/head revision snapshots; historical results remain until retention expires. Reviews are advisory: no required checks, auto-approval, or merge blocking.
 - Ruff and a small checked-in Semgrep rule set. Repository configs, custom rules, plugins, hooks, dependency installation, builds, tests, and import execution are excluded.
@@ -100,4 +100,4 @@ Maintain a synthetic corpus with at least ten seeded actionable issues and ten c
 
 ## Decisions requiring implementation evidence
 
-Phase 1 pins versions, dependency tooling, authentication library, and token key format. Phase 3 proves Linux scanner isolation before analyzer implementation. A hosted LLM vendor, cloud region/topology, spending ceiling, and production retention policy require separate decisions. None is needed for this planning task.
+Backend versions/tooling are pinned; full runtime/CI and real user authentication decisions remain outstanding. Phase 3B must prove Linux scanner isolation before analyzer execution. A hosted LLM vendor, cloud region/topology, spending ceiling, and production retention policy require separate decisions. These are not prerequisites for the current metadata-only GitHub integration.

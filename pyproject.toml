@@ -2,7 +2,7 @@
 name = "shrike-workspace"
 version = "0.1.0"
 requires-python = ">=3.12,<3.13"
-dependencies = ["shrike-api"]
+dependencies = ["shrike-api", "shrike-worker"]
 
 [dependency-groups]
 dev = [
@@ -17,16 +17,17 @@ dev = [
 package = false
 
 [tool.uv.workspace]
-members = ["packages/backend", "services/api"]
+members = ["packages/backend", "services/api", "services/worker"]
 
 [tool.uv.sources]
 shrike-api = { workspace = true }
 shrike-backend = { workspace = true }
+shrike-worker = { workspace = true }
 
 [tool.ruff]
 target-version = "py312"
 line-length = 100
-src = ["packages/backend/src", "services/api/src"]
+src = ["packages/backend/src", "services/api/src", "services/worker/src"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
@@ -35,7 +36,7 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 python_version = "3.12"
 strict = true
 plugins = ["pydantic.mypy"]
-files = ["packages/backend/src", "services/api/src", "services/api/alembic", "tests", "scripts"]
+files = ["packages/backend/src", "services/api/src", "services/api/alembic", "services/worker/src", "tests", "scripts"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -1,6 +1,6 @@
 # Shrike implementation roadmap
 
-Planning baseline: 2026-11-06. The user subsequently requested Phase 2 as persistence and core backend APIs, explicitly excluding live webhooks, AI calls, and frontend features. [ADR 0001](adr/0001-persistence-phase-scope.md) records this rebaseline and necessary backend prerequisites. Complete only the requested scope; this roadmap does not authorize the remaining phases or automatic commits.
+Planning baseline: 2026-11-06. The user redefined Phase 2 as persistence/read APIs and Phase 3 as secure GitHub App integration/PR ingestion. [ADR 0001](adr/0001-persistence-phase-scope.md) and [ADR 0002](adr/0002-github-ingestion.md) record the scope changes. Implement only requested phases. The user's standing authorization in `AGENTS.md` permits commits after meaningful verified tasks and pushes after completed verified phases; this does not authorize starting future phases.
 
 ## Status and evidence rules
 
@@ -11,8 +11,9 @@ Use `not started`, `in progress`, `blocked`, or `verified`. A phase is `verified
 | 0 | Repository inspection and implementation plan | Verified: documentation and repository-hygiene checks passed |
 | 1 | Reproducible monorepo and full local foundations | Not complete: only Python/API/database prerequisites supplied by Phase 2 |
 | 2 | Persistence and core backend read APIs | Verified: 124 tests, migrations/constraints/API isolation, lint/types, and loopback HTTP smoke passed |
-| 2B | Durable signed webhook ingestion and dispatch | Not started; explicitly deferred from current task |
-| 3 | Safe immutable snapshots and static analysis | Not started |
+| 2B | Full Redis/Celery dispatch and recovery | Incomplete: Phase 3 supplies durable inbox ingestion; broker dispatch remains deferred |
+| 3 | Secure GitHub App integration and PR ingestion | Verified: 185 tests, migrations/security/CLI checks, lint/types, configuration and documentation validation passed |
+| 3B | Safe immutable snapshots and static analysis | Not started; analyzer execution deferred |
 | 4 | Mock LLM, validated findings, persisted results | Not started |
 | 5 | GitHub publication and recovery | Not started |
 | 6 | Authenticated dashboard and metrics | Not started |
@@ -20,7 +21,7 @@ Use `not started`, `in progress`, `blocked`, or `verified`. A phase is `verified
 | 8 | Optional hosted LLM adapter and evaluation | Not started; separate scope |
 | 9 | AWS ECS, Terraform, OpenTelemetry | Not started; deferred |
 
-The requested order implements Phase 2 using only minimal backend prerequisites from Phase 1. Remaining Phase 1 foundations and Phase 2B must be completed before the full review workflow; then 3 -> 4 -> 5 -> 6 -> 7. Scanner-isolation feasibility may be investigated within Phase 3 before its other work. Phases 8 and 9 depend on a verified local MVP and can be requested independently; cloud does not require a paid model. Phase 0's validation records describe its historical baseline, not today's workspace inventory.
+Phase 2 uses minimum backend prerequisites from Phase 1; Phase 3 adds an independent ingestion runtime with a PostgreSQL inbox. Remaining foundations and broker dispatch are still required before the complete review workflow; then 3B -> 4 -> 5 -> 6 -> 7. Scanner isolation belongs to Phase 3B. Phases 8/9 require a verified local MVP and can be requested independently; cloud does not require a paid model. Phase 0/2 verification records describe their historical snapshots.
 
 ## Phase 0: inspect and plan
 
@@ -83,7 +84,7 @@ Verification record (2026-11-06; Windows/PowerShell, Python 3.12.6, uv 0.13.7, D
 - A temporary loopback Uvicorn process against a separate synthetic `shrike_demo` database passed real HTTP liveness/readiness, authorized repository/history/detail/findings reads, request IDs, and anonymous `401` checks. Programmatic Alembic upgrade/head consistency and the guarded seed CLI (insert, then no-op) passed. The token was generated in memory; captured server output contained neither token nor request URL paths. The API process and task-owned temporary migration/demo database container were stopped/removed afterward.
 - Documentation/source hygiene checks passed for seven Markdown documents, 16 relative links, 40 placeholder-only environment values, synchronized PostgreSQL image pins, exact dependency pins, and all 53 tracked/new source/document files. Existing `AGENTS.md` is unchanged. `git -c core.excludesFile= diff --check` passed with only Git's LF/CRLF conversion notices. The pre-existing `.env` was neither read nor edited and remains ignored.
 
-Manual steps still required: follow [backend-local.md](runbooks/backend-local.md) to create/reuse your persistent local demo database/password, export a generated development token and explicit grants, migrate/seed, and start the API. The full persistent Compose setup recipe is documented, not claimed as performed. Real GitHub authentication, full Phase 1 services/CI, Phase 2B webhooks, AI/static execution, frontend, retention automation, and cloud remain deferred. No commit or push was made for this task.
+Manual steps still required: follow [backend-local.md](runbooks/backend-local.md) to create/reuse your persistent local demo database/password, export a generated development token and grants, migrate/seed, and start the API. The persistent Compose recipe is documented, not claimed as performed. Phase 2 was subsequently committed and pushed as `9fc377e` before Phase 3. Real user login, full Phase 1 services/CI, broker dispatch, AI/static execution, frontend, retention automation, and cloud remain deferred.
 
 ## Phase 2B: webhook durability and job orchestration (deferred)
 
@@ -98,7 +99,32 @@ Acceptance criteria:
 - Synthetic draft/close/base-change/removal/reordered lifecycle events yield correct skip/cancel/supersede state. A stale installation event cannot restore access.
 - Demonstrate p95 acknowledgement under 500 ms for 100 sequential events on a documented local machine. Record actual results even if the target is missed.
 
-## Phase 3: safe snapshots and static analysis
+## Phase 3: secure GitHub App integration and PR ingestion
+
+Authorized scope: read-only App authentication/client; signed webhook acceptance; canonical installation/repository/PR metadata; durable deduplication and job creation; bounded file/diff/commit/blob reads; mocked tests; and separate manual App/tunnel instructions. No LLM, analyzer execution, publishing, frontend, or real account/repository modifications are part of the implementation. Git source commits/pushes follow the separately authorized development policy.
+
+Acceptance criteria:
+
+- Verify current GitHub permission documentation and request Metadata, Contents, and Pull requests read only. Keep tokens short-lived, scoped and in memory; keep private keys outside the checkout and secrets out of logs/responses.
+- Verify exact bounded raw bytes with HMAC-SHA256/constant-time comparison before parsing. Enforce header/schema/App/installation/repository/PR/SHA consistency, JSON encoding/content-type, and body limits even without Content-Length.
+- Receive opened/reopened/synchronize plus relevant lifecycle actions. Persist minimal receipts and metadata; deduplicate delivery IDs and logical job identity. Create pending jobs only after canonical verification, cancel obsolete work, and quarantine fork/draft/closed/archived PRs appropriately.
+- Disable/quarantine revoked installation/repository access immediately. Fence stale workers and serialize per-installation snapshots; preserve deleted tombstones. Handle inaccessible resources without leaking provider response bodies or rewriting ownership history.
+- Keep every GitHub call behind a typed port. Bound JSON, pagination, file count, diff and blob bytes; reject external URLs/redirects/unsafe paths; verify immutable identities; refresh expired tokens and honor durable rate-limit/transient retry schedules.
+- Test the API, client, worker CLI, migration up/down/up and data preservation, deduplication, stale leases/revocation races, scopes/identity errors, forks, invalid signatures, chunked oversize input, HTTP retry behavior, and log/response privacy using synthetic data and disposable PostgreSQL. No real GitHub API call is required.
+- Pass lint, formatting, strict types, locked dependency and Compose checks. Document account actions separately and distinguish mocked verification from a future operator-performed live smoke test. Commit verified tasks and push only once this phase is verified complete.
+
+Verification record (2026-11-06, Windows/PowerShell, Python 3.12.6, uv 0.13.7, disposable digest-pinned PostgreSQL 17):
+
+- `uv --cache-dir .cache/uv run --locked --offline python scripts/test_backend.py -q --cov=shrike --cov=shrike_api --cov=shrike_worker --cov-report=term-missing`: **185 passed in 22.87 seconds; 93% statement coverage**. This includes the old read API, initial and ingestion migrations up/down/up, retention of Phase 2 data when downgrading ingestion, real constraint behavior, signed/chunked requests, canonical identity checks, duplicate deliveries/jobs, fork exclusion, revocation races, per-installation snapshot serialization, expired leases, retry exhaustion, JWT/read-only token scope/cache/refresh, pagination/redirect bounds, diff/blob limits, and the worker CLI with a fake GitHub adapter.
+- Unit-only execution without Docker: **68 passed in 1.18 seconds**, using `uv --cache-dir .cache/uv run --locked --offline pytest tests/unit -q -p no:cacheprovider --basetemp <unique-workspace-cache-directory>`. The isolated workspace temp/cache approach avoids the previously documented sandbox cache permissions issue.
+- Ruff lint passed; `ruff format --check .` reported 62 files already formatted; strict mypy passed for 54 files including worker, migrations and tests; `uv lock --check --offline` resolved the locked 49 packages. Commands used `uv --cache-dir .cache/uv run --locked --offline`. Initial schema regex compatibility, formatting and typing issues were corrected before the successful final checks. Worker coverage is included in the final run.
+- `docker compose --env-file .env.example config --quiet` passed with a generated exported password; the isolated `shrike-github` configuration also passed with port 55433. No persistent demo stack or tunnel was started. The task-owned temporary migration container was inspected and removed; test-runner container inventory was empty after completion.
+- Final documentation/source hygiene passed: 78 tracked/new source/document files, nine Markdown documents, 24 relative links, 42 placeholder-only example settings, valid synthetic JSON fixtures, and no credential-bearing dependency URLs, committed private-key blocks, local `.env`, caches, or generated artifacts. `git diff --check` passed with only Git's LF/CRLF notices. The existing `.env` was not read or edited.
+- Current GitHub permission/JWT/token/webhook/retry documentation was checked, and the separate manual runbook links the official sources. The standing automatic-commit/phase-push policy is recorded in `AGENTS.md` and committed as `5ca78d6`. The feature commit and completed-phase push are authorized after validation; Git history and the task report record their actual outcomes.
+
+Manual account steps are in [github-app-manual.md](runbooks/github-app-manual.md). App registration, private-key creation, installation, tunnel startup, live PR creation, and real GitHub smoke testing remain **unperformed**. The full feature is not production hosting/authentication: user OAuth, Redis/Celery transport, retention automation, and analyzer/publishing runtimes remain deferred. Forks and reinstallation/transfer with existing history are quarantined by design.
+
+## Phase 3B: safe snapshots and static analysis (deferred)
 
 First prove the sandbox, then implement bounded GitHub snapshot contracts, diff mapping, Ruff, and Semgrep. Use fake GitHub responses and actual pinned scanner tools in tests. No repository execution or live private code is permitted.
 
@@ -127,7 +153,7 @@ Acceptance criteria:
 
 ## Phase 5: GitHub REST adapter and publication
 
-Implement the real GitHub adapter with mocked HTTP contract tests, short-lived installation credentials, least-privilege access, bounded pagination/rate-limit handling, advisory reviews, and publication reconciliation. Use the same contracts for fake and real adapters.
+Extend the Phase 3 read-only GitHub adapter with advisory reviews and publication reconciliation. Add Pull requests write permission only when this publishing phase is implemented and explicitly configured; retain scoped short-lived credentials and mocked contracts. No write permission or publishing endpoint is present in Phase 3.
 
 Acceptance criteria:
 
