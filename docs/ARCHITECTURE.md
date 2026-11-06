@@ -1,10 +1,20 @@
 # Shrike architecture
 
-Status: proposed architecture, 2026-11-06. No components below are implemented yet. Product scope and limits live in [PRD.md](PRD.md); phase gates live in [ROADMAP.md](ROADMAP.md).
+Status: living architecture, 2026-11-06. Phase 2 persistence and read APIs are implemented; the full event-processing system below remains proposed. Product scope and limits live in [PRD.md](PRD.md); phase gates live in [ROADMAP.md](ROADMAP.md).
+
+## Implemented Phase 2 baseline
+
+The user explicitly redefined Phase 2 as persistence and core backend APIs. [ADR 0001](adr/0001-persistence-phase-scope.md) records the scope, naming/state decisions, security tradeoffs, and prerequisite setup. The implemented surface consists of a uv Python workspace, shared SQLAlchemy persistence package, FastAPI read API, six-table Alembic migration, synthetic CLI seed, database-only Compose service, and disposable PostgreSQL tests. It includes no live GitHub/LLM calls, webhook routes, worker pipeline, frontend, or cloud resources.
+
+Current tables are `installations`, `repositories`, `pull_requests`, `review_jobs`, `review_findings`, and `review_executions`. Public job states are `pending`, `running`, `completed`, `failed`, and `canceled`. Composite foreign keys enforce job installation/repository/PR ownership, and unique analysis identities include both SHAs and policy digest. Execution attempts and finding fingerprints are unique within each job. Check constraints enforce IDs, enums, timestamps, line/path validity, and nonnegative usage. Internal worker identifiers and policy/fingerprint columns do not enter public read models.
+
+Current routes are `/health/live`, `/health/ready`, `/v1/repositories`, `/v1/repositories/{id}`, `/v1/review-jobs`, `/v1/review-jobs/{id}`, and `/v1/review-jobs/{id}/findings`. List reads use bounded keyset pagination and filter/scope-bound cursors. `HistoryReader` is a framework-independent port; its SQLAlchemy adapter applies explicit paired installation/repository grants and active status checks to every resource query.
+
+Real GitHub authentication remains deferred. Protected routes deny by default. Opt-in development bearer authentication uses server-configured paired stable GitHub IDs; it cannot be enabled in production. The synthetic seed is a guarded CLI, not an endpoint. The backend does not read `.env` automatically. See the [backend runbook](runbooks/backend-local.md) for setup, exact commands, constraints, and manual checks. Future workflow sections must be implemented against this baseline rather than assuming their provisional tables/states already exist.
 
 ## Repository baseline
 
-Inspection found one commit (`b4066e5`, `first commit`) tracking only a title-only `README.md`. A local untracked `.gitignore` contained `.env`; a local ignored `.env` existed and its contents were not read. There were no application files, manifests, migrations, tests, CI workflows, infrastructure files, or applicable ancestor `AGENTS.md` instructions. This task adds planning documents and configuration templates only.
+At the original planning inspection, one commit (`b4066e5`, `first commit`) tracked only a title-only `README.md`. A local untracked `.gitignore` contained `.env`; a local ignored `.env` existed and its contents were not read. There were no application files, manifests, migrations, tests, CI workflows, infrastructure files, or applicable ancestor `AGENTS.md` instructions. Phase 0 added planning documents and templates; Phase 2 subsequently added the backend baseline above.
 
 ## Proposed repository layout
 
@@ -134,7 +144,7 @@ If the diff is truncated or cannot be mapped reliably, skip the run with a reaso
 
 Webhook identity is the GitHub delivery ID. Analysis identity is `(repository_id, pr_number, base_sha, head_sha, policy_digest)`. The digest includes analyzer/rule versions, prompt version, provider/model identity, filters, and relevant limits; ordinary re-delivery does not create a new run. Both SHAs are included because base changes can change review coverage without a new head commit. PR `edited` schedules analysis only when the canonical base identity changes.
 
-Run states: `queued -> running -> completed | skipped | superseded | canceled | failed`. Transient errors move through `retry_wait -> queued`; attempts record each execution. `completed` means analysis finished and can be `full`, `partial`, or `static_only`; publication has its own state. All state updates compare the current lease/fencing token. Lost workers cannot overwrite a newer attempt's results.
+The implemented job states are `pending`, `running`, `completed`, `failed`, and `canceled`; no state-changing API/executor exists yet. Future dispatch will map queued/retry-wait work onto this public contract, with dedicated scheduling/outcome fields or an explicitly justified migration for skipped/superseded/degraded results. The future worker must fence all state changes so lost workers cannot overwrite newer results. Publication will have its own state. These scheduling, outcome, and lease mechanisms are not implemented by the persistence phase.
 
 The database dispatcher owns scheduling and bounded exponential backoff with jitter. Use at most three processing attempts; do not layer independent Celery autoretry loops over this policy. Honor bounded GitHub retry/reset hints. Celery uses late acknowledgement, bounded visibility timeout, low prefetch, JSON-only serialization, and task time limits longer than the application deadline/lease window. Heartbeats renew leases; recovery invalidates expired owners. A periodic reconciler republishes dispatched-but-unclaimed jobs after a timeout, so lost Redis data does not lose PostgreSQL work.
 
@@ -157,9 +167,9 @@ Use internal UUID primary keys and UTC `timestamptz` timestamps unless stated ot
 | `repositories` | Unique `github_repository_id`, current installation FK, owner/name display data, private flag, access status, canonical verification time. Preserve disabled metadata for history. |
 | `pull_requests` | Repository FK, number, optional external PR ID, base/head SHA, open/draft state, last verified time; unique `(repository_id, number)`. Do not store titles/bodies by default. |
 | `webhook_deliveries` | Unique delivery ID, event/action, external routing IDs, digest, minimal revision hints, processing state/reason, received/processed timestamps. No raw body. |
-| `review_runs` | PR FK, installation snapshot FK, base/head SHA, policy digest, run state, coverage mode/counts, queued/started/finished timestamps, safe error code, attempt count, lease owner/expiry/fence. Unique analysis identity. |
-| `review_attempts` | Run FK, ordinal, fence, stage/status, safe failure code, timings, analyzer/provider versions, token usage; unique `(run_id, ordinal)`. No raw tool/model output. |
-| `findings` | Run FK, fingerprint, source/provenance, rule/category, severity, path, line range, bounded message/suggestion, inline eligibility; unique `(run_id, fingerprint)`. Treat content as private. |
+| `review_jobs` | Implemented: PR/repository/installation ownership, base/head SHA, policy digest, explicit state, created/started/finished timestamps, unique analysis identity. Future: coverage, scheduling, lease/fence, outcome reason. |
+| `review_executions` | Implemented: job FK, attempt, state, timestamps, duration, safe error code, analyzer/ruleset/prompt/provider/model versions, token usage, internal worker identifier; unique `(job_id, attempt)`. Future: stage/fence. No raw tool/model output. |
+| `review_findings` | Implemented: job FK, fingerprint, source, rule, severity, relative path, line range, bounded message; unique `(job_id, fingerprint)`. Future: richer provenance/category, suggestions, inline eligibility. Treat content as private. |
 | `publications` | Unique run FK, deterministic marker, payload digest, state, GitHub review ID, safe retry count/error code, last checked time, lease/fence. At most one intent per run. |
 | `outbox_messages` | Kind, aggregate ID, schema version, dispatch generation, due time, lease, status, publish count; unique `(kind, aggregate_id, generation)`. ID-only payloads. |
 

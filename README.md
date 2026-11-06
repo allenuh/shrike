@@ -1,8 +1,8 @@
 # Shrike
 
-Shrike is a planned AI-assisted GitHub code review platform. It will validate GitHub App webhooks, queue Python-focused reviews, combine Ruff and Semgrep findings with validated LLM suggestions, and publish feedback to GitHub. A dashboard will show review history, findings, and operational metrics.
+Shrike is an AI-assisted GitHub code review platform under development. The planned workflow will validate GitHub App webhooks, queue Python-focused reviews, combine Ruff and Semgrep findings with validated LLM suggestions, and publish feedback to GitHub. A dashboard will show history, findings, and metrics.
 
-**Current status: architecture and planning only.** There is no runnable application, Compose stack, dependency manifest, CI workflow, or deployed infrastructure yet.
+**Current status: Phase 2 backend persistence and read APIs.** SQLAlchemy models, Alembic migrations, installation/repository-scoped FastAPI reads, synthetic demo data, and disposable PostgreSQL tests are implemented. There is no frontend, live webhook processing, worker pipeline, AI integration, CI workflow, or deployed infrastructure yet. Compose currently provides only the development database.
 
 ## Project documents
 
@@ -10,6 +10,8 @@ Shrike is a planned AI-assisted GitHub code review platform. It will validate Gi
 - [Architecture](docs/ARCHITECTURE.md): repository layout, interfaces, lifecycle, schema, decisions, and threat model.
 - [Roadmap](docs/ROADMAP.md): phases, measurable acceptance criteria, and validation status.
 - [Agent instructions](AGENTS.md): rules for future implementation tasks.
+- [Backend setup and manual verification](docs/runbooks/backend-local.md): exact local commands.
+- [Phase scope decision](docs/adr/0001-persistence-phase-scope.md): the user-requested Phase 2 rebaseline.
 
 ## Planned stack
 
@@ -28,24 +30,28 @@ The backend will be a modular monolith shared by an API process and worker proce
 
 ## Development preparation
 
-Install Git, Docker Desktop with Linux containers and Compose v2, Python 3.12, and a supported Node.js LTS release. Phase 1 will pin exact runtime and dependency versions and commit lockfiles. On Windows, use Linux containers for the worker and scanner isolation; WSL2 is recommended.
+The backend uses Python 3.12 and uv; tested tool versions and commands are in the backend runbook. Python dependencies are pinned in the workspace manifests and `uv.lock`; the PostgreSQL 17 image is pinned by digest. Docker Desktop must use Linux containers. Node.js is not needed for this backend-only phase; the future web application will require a supported Node.js LTS release.
 
-Copy the configuration template only if you do not already have a local environment file:
+Every value in [.env.example](.env.example) is a placeholder. The backend deliberately does not load `.env` automatically. Follow the runbook to export only the settings this phase uses, create the local demo database, migrate, seed, and start the API. No GitHub or model credential is needed. Preserve any existing local `.env`. Never commit credentials, private code fixtures, or production data.
+
+From the repository root, after installing the prerequisites:
 
 ```powershell
-if (-not (Test-Path -LiteralPath .env)) {
-    Copy-Item -LiteralPath .env.example -Destination .env
-}
+uv --cache-dir .cache/uv sync --locked
+uv --cache-dir .cache/uv run --locked ruff check .
+uv --cache-dir .cache/uv run --locked ruff format --check .
+uv --cache-dir .cache/uv run --locked mypy
+uv --cache-dir .cache/uv run --locked python scripts/test_backend.py -q
 ```
 
-Every value in [.env.example](.env.example) is a placeholder. Generate local credentials and keys when the corresponding phase is implemented. Keep the GitHub App PEM outside the repository and mount it read-only into the backend containers. Never commit `.env`, private keys, tokens, private code fixtures, or production data.
+The test runner creates a unique temporary PostgreSQL container and a disposable database per integration test, then removes them. It does not use the demo database or existing `.env`. Initial dependency/image downloads need registry access; test execution makes no GitHub, LLM, or paid-service calls. See the runbook for running unit tests without Docker.
 
-**No application startup or test command is available yet.** Phase 1 will add a supported `docker compose up --build` workflow, migration instructions, health checks, and exact validation commands. Later phases will add an offline synthetic webhook replay and mock GitHub integration so local tests require neither credentials nor paid services. The mock LLM requires no API key.
+The API denies access by default. Development authentication requires an explicit opt-in, generated bearer token, and server-side installation/repository grants. Real GitHub login remains deferred; this phase must not be exposed as a production user-facing service.
 
 A real GitHub App and a publicly reachable HTTPS webhook URL will be needed only for an explicitly authorized integration smoke test. App registration, permission selection, callback URLs, secret generation, and an optional tunnel will be documented as manual steps. They have not been performed.
 
 ## Implementation order
 
-Build foundations, webhook durability, safe static analysis, mock-assisted review, GitHub publication, and the authenticated dashboard in separate phases. Complete local hardening before cloud work. See the [roadmap](docs/ROADMAP.md) for phase boundaries and exit criteria.
+The user requested persistence/read APIs before event processing. Remaining foundations, deferred webhook durability (Phase 2B), safe static analysis, mock-assisted review, GitHub publication, and the authenticated dashboard remain separate phases. Complete local hardening before cloud work. See the [roadmap](docs/ROADMAP.md) for phase boundaries and evidence.
 
 Shrike will not run repository code, install repository dependencies, apply automatic fixes, or treat LLM output as trusted instructions. Reviews are advisory and will not gate merges in the MVP.

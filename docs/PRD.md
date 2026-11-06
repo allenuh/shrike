@@ -1,6 +1,6 @@
 # Shrike product requirements
 
-Status: proposed design; planning baseline dated 2026-11-06. This document specifies intended behavior, not implemented capabilities.
+Status: product requirements, planning baseline dated 2026-11-06. Phase 2 implements the persistence/read-API slice with synthetic data and development-only access. The full GitHub/AI/dashboard workflow remains proposed; [ROADMAP.md](ROADMAP.md) records actual verification and deferred work.
 
 ## Problem and outcome
 

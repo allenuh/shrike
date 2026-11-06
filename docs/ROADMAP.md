@@ -1,6 +1,6 @@
 # Shrike implementation roadmap
 
-Planning baseline: 2026-11-06. Only Phase 0 is in scope for the current task. All application phases below are proposed and require a subsequent user request. Complete only the requested phase; do not treat this roadmap as authorization to implement the entire product.
+Planning baseline: 2026-11-06. The user subsequently requested Phase 2 as persistence and core backend APIs, explicitly excluding live webhooks, AI calls, and frontend features. [ADR 0001](adr/0001-persistence-phase-scope.md) records this rebaseline and necessary backend prerequisites. Complete only the requested scope; this roadmap does not authorize the remaining phases or automatic commits.
 
 ## Status and evidence rules
 
@@ -9,8 +9,9 @@ Use `not started`, `in progress`, `blocked`, or `verified`. A phase is `verified
 | Phase | Outcome | Status |
 | --- | --- | --- |
 | 0 | Repository inspection and implementation plan | Verified: documentation and repository-hygiene checks passed |
-| 1 | Reproducible monorepo and local foundations | Not started |
-| 2 | Durable signed webhook ingestion and dispatch | Not started |
+| 1 | Reproducible monorepo and full local foundations | Not complete: only Python/API/database prerequisites supplied by Phase 2 |
+| 2 | Persistence and core backend read APIs | Verified: 124 tests, migrations/constraints/API isolation, lint/types, and loopback HTTP smoke passed |
+| 2B | Durable signed webhook ingestion and dispatch | Not started; explicitly deferred from current task |
 | 3 | Safe immutable snapshots and static analysis | Not started |
 | 4 | Mock LLM, validated findings, persisted results | Not started |
 | 5 | GitHub publication and recovery | Not started |
@@ -19,7 +20,7 @@ Use `not started`, `in progress`, `blocked`, or `verified`. A phase is `verified
 | 8 | Optional hosted LLM adapter and evaluation | Not started; separate scope |
 | 9 | AWS ECS, Terraform, OpenTelemetry | Not started; deferred |
 
-Dependencies: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7. Scanner-isolation feasibility may be investigated within Phase 3 before its other work. Phases 8 and 9 depend on a verified local MVP and can be requested independently; cloud does not require a paid model.
+The requested order implements Phase 2 using only minimal backend prerequisites from Phase 1. Remaining Phase 1 foundations and Phase 2B must be completed before the full review workflow; then 3 -> 4 -> 5 -> 6 -> 7. Scanner-isolation feasibility may be investigated within Phase 3 before its other work. Phases 8 and 9 depend on a verified local MVP and can be requested independently; cloud does not require a paid model. Phase 0's validation records describe its historical baseline, not today's workspace inventory.
 
 ## Phase 0: inspect and plan
 
@@ -55,7 +56,36 @@ Acceptance criteria:
 - CI runs Python lint/format/type checks, meaningful foundation tests, TypeScript/lint/build checks, and Compose configuration validation using synthetic local configuration.
 - Record exact setup/check commands, tool versions, service health, and remaining manual prerequisites. Do not claim a live GitHub integration.
 
-## Phase 2: webhook durability and job orchestration
+## Phase 2: persistence and core backend APIs
+
+Current authorized scope: six SQLAlchemy models, initial Alembic migration, connection/session management, scoped repositories/history/detail/findings reads, filtering/keyset pagination/sorting, Pydantic schemas, a guarded synthetic development seed, safe errors/logging, and disposable PostgreSQL unit/integration verification. Do not add live GitHub webhooks, AI calls, frontend product features, or automatic commits.
+
+Acceptance criteria:
+
+- Use unique stable GitHub IDs for installations, repositories, and PRs; enforce PR number uniqueness within a repository, analysis identity uniqueness across base/head/policy, finding fingerprint uniqueness per job, and execution attempt uniqueness per job.
+- Enforce explicit `pending`, `running`, `completed`, `failed`, and `canceled` job states, valid timestamps, bounded findings, valid line/path values, and nonnegative execution usage. Represent cancellation without pretending a worker/cancel endpoint exists.
+- Enforce job installation/repository/PR ownership using composite foreign keys. Keep framework-independent read contracts separate from SQLAlchemy and HTTP implementations.
+- Provide connection pooling and request-owned sessions with cleanup/rollback. No automatic migration or seed on API startup.
+- Expose authorized repositories, review history, detail including findings/executions, and paginated findings. Support documented filters, allowlisted sorts, bounded limits, cursor validation, and deterministic tie-breakers.
+- Deny protected reads by default. Development-only bearer access uses explicit server-side installation/repository grant pairs and active-status checks; production cannot enable it. Inaccessible objects return generic `404`; lists and filters cannot expand access.
+- Use explicit Pydantic response allowlists that omit credentials and internal worker/policy/fingerprint columns. Structured logs and error envelopes never echo headers, raw exceptions, database values, private paths, or query input.
+- Provide an explicit, idempotent synthetic seed CLI guarded by environment, loopback host, database name, and confirmation flag. Do not expose a seed endpoint or mutate unrelated data.
+- Verify real PostgreSQL migration up/down/up and metadata agreement, uniqueness/check/FK behavior, scoped API responses, pagination, revocation, secret redaction, seed repeat/refusal, rollback, and database-per-test isolation. Unit tests must run without Docker; full integration tests must use disposable PostgreSQL, not SQLite.
+- Pass locked dependency checks, Ruff lint/format, strict mypy, Compose validation, and relevant tests. Document manual setup/migration/API commands and distinguish them from actually executed checks.
+
+Verification record (2026-11-06; Windows/PowerShell, Python 3.12.6, uv 0.13.7, Docker Server 29.9.2, digest-pinned PostgreSQL 17):
+
+- `uv --cache-dir .cache/uv run --locked python scripts/test_backend.py -q --cov=shrike --cov=shrike_api --cov-report=term-missing`: **124 passed in 14.61 seconds; 98% statement coverage** across shared/backend API modules. This includes real PostgreSQL upgrade/down/upgrade and Alembic metadata checks, uniqueness/FK/check violations, base-revision identity, seed repeat/refusal, per-test database isolation, rollback, scoped reads, stable pagination, paired/empty grants, revocation, safe responses, and redaction. Temporary test containers were removed by the runner; an explicit Docker inventory check confirmed no `shrike-tests-*` containers remained.
+- Unit-only execution without Docker: **38 passed** using `uv --cache-dir .cache/uv run --locked --offline pytest tests/unit -q -p no:cacheprovider --basetemp <unique-workspace-cache-directory>`. The ordinary sandboxed unit command initially hit permissions on pytest cache/temp directories created by an elevated run; the successful rerun used a fresh workspace temp directory and disabled that shared cache. No application change was needed for this environment restriction.
+- `uv --cache-dir .cache/uv run --locked --offline ruff check .`: passed. `uv --cache-dir .cache/uv run --locked --offline ruff format --check .`: 42 files already formatted. `uv --cache-dir .cache/uv run --locked --offline mypy`: passed for 35 source files, including migrations and tests. Initial formatting/type issues were corrected before these successful checks.
+- `uv --cache-dir .cache/uv lock --check --offline`: passed; 44 locked packages. Direct imports are explicitly pinned; editable package rebuilds succeeded. Initial dependency installation needed approved registry access because the sandbox blocks network access; the runtime tests used no external GitHub/LLM services. The pinned Starlette test client required `httpx2`; its deprecated `httpx` fallback was replaced before the successful suite.
+- `docker compose --env-file .env.example config --quiet` with a generated exported local password: passed. This validates the database-only Compose configuration without reading the existing `.env`; the persistent Compose demo stack was not started.
+- A temporary loopback Uvicorn process against a separate synthetic `shrike_demo` database passed real HTTP liveness/readiness, authorized repository/history/detail/findings reads, request IDs, and anonymous `401` checks. Programmatic Alembic upgrade/head consistency and the guarded seed CLI (insert, then no-op) passed. The token was generated in memory; captured server output contained neither token nor request URL paths. The API process and task-owned temporary migration/demo database container were stopped/removed afterward.
+- Documentation/source hygiene checks passed for seven Markdown documents, 16 relative links, 40 placeholder-only environment values, synchronized PostgreSQL image pins, exact dependency pins, and all 53 tracked/new source/document files. Existing `AGENTS.md` is unchanged. `git -c core.excludesFile= diff --check` passed with only Git's LF/CRLF conversion notices. The pre-existing `.env` was neither read nor edited and remains ignored.
+
+Manual steps still required: follow [backend-local.md](runbooks/backend-local.md) to create/reuse your persistent local demo database/password, export a generated development token and explicit grants, migrate/seed, and start the API. The full persistent Compose setup recipe is documented, not claimed as performed. Real GitHub authentication, full Phase 1 services/CI, Phase 2B webhooks, AI/static execution, frontend, retention automation, and cloud remain deferred. No commit or push was made for this task.
+
+## Phase 2B: webhook durability and job orchestration (deferred)
 
 Implement signature verification, supported-event validation, receipt/outbox persistence, canonical reconciliation through a fake GitHub adapter, Celery dispatch, run identities, leases, retries, and broker-loss recovery. Real adapter connectivity is deferred to Phase 5.
 
