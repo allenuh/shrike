@@ -72,9 +72,18 @@ Preferred scopes: `api`, `web`, `github`, `ai`, `worker`, `db`, `infra`, `auth`,
 10. Before committing, check `git status`, inspect the staged file list and `git diff --cached`, and run `git diff --cached --check`. Confirm that only authorized changes are staged.
 11. Never commit secrets, credentials, real environment files (including `.env` and environment-specific variants), or generated build artifacts. A deliberately tracked example such as `.env.example` may contain placeholders only; review it before staging.
 12. Do not amend or rewrite existing commits unless explicitly requested.
-13. Do not push to a remote repository unless explicitly requested.
+13. Push only when explicitly requested or when a phase is verified complete under the standing development authorization below.
 14. At the end of every implementation task, propose an appropriate Conventional Commit message. If an authorized commit was created, report its actual message and commit ID.
 15. Make commits only when the user has requested a commit or explicitly authorized automatic commits for that task. Proposing a message or completing a milestone does not itself authorize a commit.
+
+### Standing development authorization
+
+The user has explicitly authorized automatic commits after each meaningful development task and automatic pushes after each completed phase. This authorization applies to future development sessions unless the user overrides or revokes it.
+
+- After a meaningful, logically cohesive task is complete and its relevant checks pass, review Git status and staged changes, then create a Conventional Commit without requesting confirmation again. Include related tests and documentation; keep incomplete or unrelated work out of that commit.
+- Push the phase's commits to the configured remote only after all acceptance criteria for that phase are verified, required checks pass, and `docs/ROADMAP.md` records the evidence. Do not push incomplete phases automatically. An explicit user request may separately authorize an earlier push.
+- Report created commit IDs/messages, push results, and any checks, manual steps, or phase criteria that remain incomplete. If checks, authentication, permissions, or remote divergence block a commit/push, preserve the work and report the blocker honestly.
+- This standing authorization does not permit amending or rewriting history, force-pushing, committing secrets or generated artifacts, bypassing failed checks, or implementing unrequested phases.
 
 ## Task completion report
 
