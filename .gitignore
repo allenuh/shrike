@@ -1,0 +1,66 @@
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+.secrets/
+secrets/
+
+# Python environments, caches, and build output
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+*.egg-info/
+build/
+dist/
+
+# JavaScript dependencies and generated files; commit lockfiles
+node_modules/
+.next/
+out/
+.turbo/
+coverage/
+*.tsbuildinfo
+next-env.d.ts
+
+# Local runtime data and reports
+.data/
+.local/
+.cache/
+tmp/
+temp/
+artifacts/
+test-results/
+playwright-report/
+*.log
+*.sqlite
+*.sqlite3
+*.db
+
+# Future infrastructure state; commit .terraform.lock.hcl
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfvars
+*.tfvars.json
+!*.example.tfvars
+!*.example.tfvars.json
+crash.log
+
+# Editors and operating systems
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+Desktop.ini
