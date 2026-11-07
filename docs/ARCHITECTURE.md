@@ -1,6 +1,6 @@
 # Shrike architecture
 
-Status: living architecture, 2026-11-06. Phases 2-6 implement scoped persistence, GitHub ingestion, standalone analysis, asynchronous review execution and independent advisory publication. Dashboard/cloud remain proposed. GitHub/AI verification uses mocks; Redis/Celery, PostgreSQL and isolated Ruff run locally. Product scope and limits live in [PRD.md](PRD.md); phase gates live in [ROADMAP.md](ROADMAP.md).
+Status: living architecture, 2026-11-06. Phases 2-7 implement scoped persistence, GitHub ingestion, standalone analysis, asynchronous review execution, independent advisory publication and the authenticated dashboard. Production hardening/cloud remain proposed. GitHub/AI verification uses mocks; Redis/Celery, PostgreSQL and isolated Ruff run locally. Product scope and limits live in [PRD.md](PRD.md); phase gates live in [ROADMAP.md](ROADMAP.md).
 
 Project identity: **Shrike**, canonical repository `https://github.com/allenuh/shrike.git`. Existing Python packages, API branding, Compose service/data names, and fixtures already use this identity; no runtime rename or data migration is required.
 
@@ -62,7 +62,7 @@ Current publication states are `preparing`, `inflight`, `published`, `partial`, 
 
 Publication clients request separate repository-scoped Metadata read/Pull requests read tokens for reads and Metadata read/Pull requests write tokens for writes; they never request Contents write. Existing analysis clients still request Contents read/Pull requests read. Analysis, spending accounting and queue attempts are untouched by publication failures. [github-publication.md](runbooks/github-publication.md) documents setup, private preview artifacts, manual test PR validation, retry/uncertainty investigation and remaining live limitations. Retention must preserve content-free publication identities/IDs; automated purge and reconciliation scheduling remain future hardening.
 
-## Phase 7 dashboard backend baseline
+## Implemented Phase 7 dashboard baseline
 
 [ADR 0006](adr/0006-saas-dashboard.md) brings the deferred 6B dashboard into the user's requested Phase 7 and defers hardening to 7B. The backend remains a modular FastAPI application with the existing worker, ports, persistence and queue. `UserAuthorizationGateway`, `SessionStore` and `DashboardReader` isolate OAuth, encrypted sessions and dashboard reads. Migration `0007_dashboard` adds `oauth_states` and `dashboard_sessions`; existing reports, publication identities and spending accounting are preserved. Readiness requires the new revision.
 
@@ -70,7 +70,7 @@ FastAPI owns GitHub App user OAuth: S256 PKCE, fixed configured callback/origin,
 
 The dashboard read surface is `/v1/dashboard/{repositories,reviews,metrics,operations,settings}` and `/v1/dashboard/reviews/{uuid}`. It reuses history keyset pagination and filters. Snippets expose at most 500 characters of already-persisted evidence only, never a fresh source fetch; unavailable legacy excerpts are explicit. GitHub links are constructed from authorized identities and immutable SHAs. Metrics use authorized repository subqueries before aggregation; time windows, terminal denominators and completed processing duration are defined in the [dashboard runbook](runbooks/dashboard-local.md). Operations are scoped SQL aggregates of queue/lease/publication evidence, with heartbeat and Redis reachability explicitly unavailable.
 
-The new `apps/web` Next.js/TypeScript/Tailwind workspace is being verified separately. It uses a same-origin allowlisted BFF and typed runtime-validated responses. Default demo data is synthetic and never contacts the backend; explicit live mode never falls back to demo. Settings display the fixed review/publication policy and browser-local density only. No backend credential enters NEXT_PUBLIC settings or browser storage. This baseline does not implement cloud hosting, policy mutation, reruns, paid AI or broader hardening.
+The `apps/web` Next.js/TypeScript/Tailwind workspace is verified locally with a production build, typed/component checks and desktop/mobile end-to-end tests. It uses a same-origin allowlisted BFF and typed runtime-validated responses. Default demo data is synthetic and never contacts the backend; explicit live mode never falls back to demo. Settings display the fixed review/publication policy and browser-local density only. No backend credential enters NEXT_PUBLIC settings or browser storage. This baseline does not implement cloud hosting, policy mutation, reruns, paid AI or broader hardening.
 
 ## Historical initial inspection
 
@@ -165,6 +165,8 @@ Planned Compose services: `web`, `api`, `worker`, `dispatcher`, `postgres`, and 
 
 | Port | Domain-level responsibilities | Implementations |
 | --- | --- | --- |
+| `UserAuthorizationGateway` / `SessionStore` | GitHub App user OAuth exchange, live user identity/membership and opaque session/state persistence. | Fixed-origin HTTP adapter and encrypted PostgreSQL store; mocked transports in tests. |
+| `DashboardReader` | Authorized repository/review/evidence/metrics/queue read models, reusing history pagination. | SQLAlchemy scoped subqueries and aggregates. |
 | `GitHubGateway` | Resolve installation/repository access, fetch canonical PR and bounded immutable content, publish/list Shrike reviews, validate user access. | GitHub REST; deterministic fake with timeout/rate-limit/ambiguous-write scenarios. |
 | `LLMProvider` | Accept bounded serialized context/output cap and return raw candidate JSON, model metadata, and nullable reported usage for independent strict validation; no tools or persistence. | Phase 4 deterministic mock and guarded OpenAI Responses adapter. |
 | `TokenCounter` / `PricingCatalog` (future) | Generalize exact complete-request counts and verified model/tier price lookup. | Phase 4 uses an expiring reviewed `PriceProfile` and explicitly approved conservative bound; exact tokenizer/catalog adapters remain deferred. |

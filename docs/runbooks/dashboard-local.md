@@ -199,3 +199,7 @@ reachability and process heartbeats are explicitly unavailable. The page cannot
 retry jobs, publish feedback, mutate code or change provider/spending controls.
 Full operations/retention/backup drills and production SaaS hardening remain Phase
 7B; this phase does not claim a production multi-tenant service or live compatibility.
+
+## Official authentication references
+
+Checked 2026-11-07: [GitHub App user authorization and PKCE](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-a-user-access-token-for-a-github-app), [user installation/repository membership](https://docs.github.com/en/rest/apps/installations), and [Next request logging controls](https://nextjs.org/docs/app/api-reference/config/next-config-js/logging). No authenticated request was made to validate these documents.

@@ -3,7 +3,7 @@
 Phase 6 publishes completed Shrike reports (RepoPilot in the request is the same
 pipeline). [ADR 0005](../adr/0005-github-publication.md) records the phase rebaseline,
 quality threshold, independent execution and uncertainty tradeoffs. Dashboard work
-is Phase 6B. No live GitHub review or paid AI call was performed during implementation.
+is Phase 6B. No live GitHub review or paid AI call was performed during implementation. The subsequent [Phase 7 dashboard](dashboard-local.md) advances current API readiness to `0007_dashboard`; migrate to head before restarting current services.
 
 ## Offline verification
 
