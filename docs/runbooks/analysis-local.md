@@ -1,6 +1,6 @@
 # Standalone analysis and evaluation
 
-Scope: Phase 4 operator CLI and Python engine, independent of HTTP, Celery, publishing, and dashboard code. All fixtures are invented. No real OpenAI request, live evaluation, or account/billing setup was performed during implementation. [ADR 0003](../adr/0003-analysis-engine-scope.md) explains the expanded scope and host-operated scanner boundary.
+Scope: standalone operator CLI and Python engine, independent of HTTP, Celery, publishing, and dashboard code. Phase 5 reuses it through [asynchronous processing](async-processing.md), restricted to mock AI. All fixtures are invented. No real model request, live evaluation, or account/billing setup was performed. [ADR 0003](../adr/0003-analysis-engine-scope.md) explains the scanner boundary.
 
 ## Offline setup and commands
 

@@ -39,7 +39,7 @@ To verify migration upgrade, metadata agreement, downgrade, and re-upgrade witho
 uv --cache-dir .cache/uv run --locked python scripts/test_backend.py -q tests/integration/test_migrations.py::test_upgrade_downgrade_upgrade_and_metadata_agreement
 ```
 
-The current `downgrade base` drops all eleven application tables and their content, including API spending history. Downgrading to `0002_github` removes analysis reports/accounting while retaining Phase 2/3 data; live use afterward requires explicit spending reconciliation. Downgrading to `0001_core` also removes ingestion receipts/access metadata. Use disposable databases for this verification. Migrations are never automatically applied on API startup.
+The current `downgrade base` drops all thirteen application tables and their content, including API spending history. Downgrading to `0003_analysis` removes queue scheduling/outbox/provider-admission data while retaining earlier history; stop worker/dispatcher first. Downgrading to `0002_github` additionally removes analysis reports/accounting; live use afterward requires spending reconciliation. Use disposable databases for verification. Migrations are never automatically applied on startup.
 
 ## Start the synthetic demo
 
@@ -105,7 +105,7 @@ Expected: one authorized repository, a completed job with three findings and one
 
 Lists accept `limit=1..100` (default 20), `order=asc|desc` (default descending), and an opaque `cursor`. State ordering is alphabetical; severity ordering uses info < low < medium < high < critical. Every sort includes UUID as a tie-breaker. Detail findings use the default severity-descending order and first 20 records; follow their `next_cursor` through the findings route with the same filters/order. Encode the cursor as a query parameter, and keep filters/order/access scope unchanged; changing them returns `422`. Limit may change between pages. Pagination is a live keyset view, not an immutable multi-request snapshot.
 
-Invalid filters, naive/reversed date ranges, malformed cursors, and unknown query parameters return sanitized `422` error envelopes. Errors have `error.code`, `error.message`, and `error.request_id`; the generated ID also appears in `X-Request-ID`. Database errors return sanitized `503`; unexpected errors return `500`. Liveness is process-only; readiness requires database connectivity and revision `0003_analysis`.
+Invalid filters, naive/reversed date ranges, malformed cursors, and unknown query parameters return sanitized `422` error envelopes. Errors have `error.code`, `error.message`, and `error.request_id`; the generated ID also appears in `X-Request-ID`. Database errors return sanitized `503`; unexpected errors return `500`. Liveness is process-only; readiness requires database connectivity and revision `0005_execution`.
 
 Structured request logs contain a generated request ID, HTTP method category, status, and duration. They omit URL/query strings, headers, repository paths, findings, raw exceptions, and database parameters. Uvicorn's default access logger is disabled by the factory as well as by the documented command. Do not enable SQL echo, request-body logging, or debug tracebacks for private data.
 

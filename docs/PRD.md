@@ -2,7 +2,7 @@
 
 Status: product requirements, planning baseline dated 2026-11-06. Phase 2 implements persistence/read APIs; Phase 3 implements secure GitHub App ingestion, verified with mocks. Real account setup remains manual, and the complete analysis/publishing/dashboard workflow remains proposed. [ROADMAP.md](ROADMAP.md) records evidence and deferred work.
 
-The project name is Shrike; its canonical repository is `https://github.com/allenuh/shrike.git`. The approximate total OpenAI API development budget is $10 USD. Phase 4 implements standalone snapshot analysis, a deterministic mock, a guarded hosted adapter, scoped caching, and persistent budget reservations under [ADR 0003](adr/0003-analysis-engine-scope.md). [AI_COST_CONTROLS.md](AI_COST_CONTROLS.md) documents enforcement and remaining live-verification limitations. No real API call has been performed.
+The project name is Shrike; its canonical repository is `https://github.com/allenuh/shrike.git`. The approximate total OpenAI API development budget is $10 USD. Phase 4 implements standalone analysis and guarded hosted evaluation; Phase 5 implements durable Redis/Celery execution with mock-only queued AI under [ADR 0004](adr/0004-asynchronous-processing.md). Publishing moves to Phase 5B. [AI_COST_CONTROLS.md](AI_COST_CONTROLS.md) documents enforcement and remaining live-verification limits. All GitHub/AI verification is synthetic/mocked; no real model request has been performed.
 
 ## Problem and outcome
 

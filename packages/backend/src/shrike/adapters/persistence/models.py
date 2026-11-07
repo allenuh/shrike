@@ -167,6 +167,8 @@ class ReviewJob(IdentityMixin, Base):
         ),
         Index("ix_jobs_repository_created", "repository_id", "created_at", "id"),
         Index("ix_jobs_state_created", "state", "created_at", "id"),
+        CheckConstraint("attempt_count BETWEEN 0 AND 3", name="attempt_count"),
+        CheckConstraint("(lease_token IS NULL) = (lease_expires_at IS NULL)", name="lease"),
     )
 
     installation_id: Mapped[uuid.UUID] = mapped_column(
@@ -182,6 +184,18 @@ class ReviewJob(IdentityMixin, Base):
     )
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    attempt_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    first_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    available_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    error_code: Mapped[str | None] = mapped_column(String(64))
+    lease_token: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    lease_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    publication_eligible: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false"
+    )
+    result: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
 
 
 class ReviewFinding(IdentityMixin, Base):
@@ -243,6 +257,7 @@ class ReviewExecution(IdentityMixin, Base):
     error_code: Mapped[str | None] = mapped_column(String(64))
     # Operational identifiers are intentionally absent from public response models.
     worker_identifier: Mapped[str | None] = mapped_column(String(128))
+    usage_reported: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
 
 
 class WebhookDelivery(IdentityMixin, Base):
@@ -312,6 +327,12 @@ class QueueMessage(IdentityMixin, Base):
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     lease_token: Mapped[uuid.UUID | None] = mapped_column(Uuid)
     lease_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class ProviderWindow(Base):
+    __tablename__ = "provider_windows"
+    key: Mapped[str] = mapped_column(String(128), primary_key=True)
+    next_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
 class AiBudget(Base):

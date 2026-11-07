@@ -1,6 +1,7 @@
 """Run tests in a unique tmpfs PostgreSQL container, then remove only that container."""
 
 import os
+import secrets
 import subprocess
 import sys
 import time
@@ -19,6 +20,8 @@ def main() -> int:
     image = (root / "infra/docker/postgres-image.txt").read_text().strip()
     name = f"shrike-tests-{uuid.uuid4().hex}"
     created = False
+    redis_created = False
+    redis_name = f"shrike-redis-tests-{uuid.uuid4().hex}"
     try:
         docker(
             "run",
@@ -63,6 +66,35 @@ def main() -> int:
         env["SHRIKE_TEST_DATABASE_URL"] = (
             f"postgresql+psycopg://postgres@127.0.0.1:{port}/shrike_test"
         )
+        redis_image = (root / "infra/docker/redis-image.txt").read_text().strip()
+        redis_password = secrets.token_urlsafe(32)
+        docker(
+            "run",
+            "--detach",
+            "--rm",
+            "--name",
+            redis_name,
+            "--publish",
+            "127.0.0.1::6379",
+            "--tmpfs",
+            "/data",
+            redis_image,
+            "redis-server",
+            "--requirepass",
+            redis_password,
+            "--save",
+            "",
+            "--appendonly",
+            "no",
+        )
+        redis_created = True
+        redis_port = int(docker("port", redis_name, "6379/tcp").rsplit(":", 1)[1])
+        env["SHRIKE_TEST_REDIS_URL"] = f"redis://:{redis_password}@127.0.0.1:{redis_port}/0"
+        deadline = time.monotonic() + 30
+        while docker("exec", redis_name, "redis-cli", "ping") != "NOAUTH Authentication required.":
+            if time.monotonic() > deadline:
+                raise TimeoutError("Redis startup timed out")
+            time.sleep(0.1)
         return subprocess.run(
             [sys.executable, "-m", "pytest", *sys.argv[1:]], cwd=root, env=env, check=False
         ).returncode
@@ -70,6 +102,11 @@ def main() -> int:
         print("Disposable PostgreSQL test setup failed; check Docker availability", file=sys.stderr)
         return 2
     finally:
+        if redis_created:
+            try:
+                docker("rm", "--force", redis_name)
+            except (subprocess.SubprocessError, OSError):
+                print(f"Cleanup failed: remove task-owned container {redis_name}", file=sys.stderr)
         if created:
             try:
                 docker("rm", "--force", name)

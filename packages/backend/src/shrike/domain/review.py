@@ -1,14 +1,16 @@
 """Validated engine contracts. Source is data; these objects never execute it."""
 
 import re
+from datetime import datetime
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class ReviewError(Exception):
-    def __init__(self, code: str) -> None:
+    def __init__(self, code: str, *, retry_at: datetime | None = None) -> None:
         self.code = code
+        self.retry_at = retry_at
         super().__init__(code)
 
 
@@ -126,6 +128,7 @@ class ModelReply(StrictModel):
 
 
 class Report(StrictModel):
+    retry_at: datetime | None = None
     analysis_hash: str
     pricing_verified_at: str | None = None
     status: Literal["completed", "partial", "static_only", "dry_run"]

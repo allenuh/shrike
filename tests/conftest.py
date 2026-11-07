@@ -17,6 +17,7 @@ from shrike.adapters.persistence.database import Database
 from shrike.adapters.persistence.demo import seed_demo
 from shrike.config import Settings
 from shrike_api.main import create_app
+from shrike_worker.config import QueueSettings
 
 ROOT = Path(__file__).resolve().parents[1]
 TEST_TOKEN = "synthetic-development-test-token-00001"
@@ -24,6 +25,25 @@ TEST_TOKEN = "synthetic-development-test-token-00001"
 
 def migration_config() -> Config:
     return Config(str(ROOT / "alembic.ini"))
+
+
+@pytest.fixture
+def queue_settings() -> "QueueSettings":
+    from urllib.parse import urlsplit
+
+    supplied = os.environ.get("SHRIKE_TEST_REDIS_URL")
+    if supplied is None:
+        pytest.fail("Use scripts/test_backend.py for disposable Redis integration tests")
+    url = urlsplit(supplied)
+    if (
+        url.scheme != "redis"
+        or url.hostname not in {"127.0.0.1", "localhost", "::1"}
+        or url.path != "/0"
+    ):
+        pytest.fail("Tests require an explicitly supplied loopback Redis database 0")
+    return QueueSettings(
+        broker_url=SecretStr(supplied), namespace="shrike-t-" + uuid4().hex, provider_rpm=6000
+    )
 
 
 @pytest.fixture

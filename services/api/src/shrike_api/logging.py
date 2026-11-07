@@ -1,6 +1,8 @@
 import json
 import logging
 
+from shrike.telemetry import SafeStderrHandler
+
 
 class SafeJsonFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
@@ -22,8 +24,11 @@ def configure_logging() -> logging.Logger:
     # Uvicorn's default access logger includes URL/query strings, which may contain private input.
     logging.getLogger("uvicorn.access").disabled = True
     logger = logging.getLogger("shrike.http")
-    if not logger.handlers:
-        handler = logging.StreamHandler()
+    if not logger.handlers or not any(
+        isinstance(handler, SafeStderrHandler) for handler in logger.handlers
+    ):
+        logger.handlers = []
+        handler = SafeStderrHandler()
         handler.setFormatter(SafeJsonFormatter())
         logger.addHandler(handler)
     logger.setLevel(logging.INFO)

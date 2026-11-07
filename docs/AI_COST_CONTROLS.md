@@ -1,6 +1,6 @@
 # Shrike AI cost controls
 
-Status: implemented Phase 4 controls, 2026-11-06, with mocked hosted-provider verification and no real API calls. [ADR 0003](adr/0003-analysis-engine-scope.md) records the user's expanded scope. The standalone engine has provider contracts, deterministic mock, guarded OpenAI adapter, dry-run/evaluation commands, scoped cache, and persistent budget reservations. See [analysis-local.md](runbooks/analysis-local.md) for setup and limitations. Queue integration, automated billing reconciliation, and real model quality verification remain deferred.
+Status: implemented standalone controls, 2026-11-06, with mocked hosted verification and no real model calls. [ADR 0003](adr/0003-analysis-engine-scope.md) records that scope. Phase 5 adds [asynchronous processing](runbooks/async-processing.md) under ADR 0004 and explicitly restricts queued AI to the mock. The standalone guarded evaluator remains the sole hosted path; future paid queue/retry integration requires separate spending verification. Automated billing reconciliation and real model quality/encoding verification remain deferred.
 
 ## Budget and execution policy
 
@@ -34,6 +34,7 @@ Standalone settings are placeholders in [.env.example](../.env.example); API/ing
 | `AI_MAX_REVIEW_COST_USD` | `0.02` cap across all paid attempts for one review; global budget also applies. |
 | `LLM_PRICING_PROFILE_PATH` | Reviewed non-secret JSON profile; code enforces a maximum 24-hour verification window. No live rate fallback. |
 | `LLM_LIVE_EVAL_ENABLED`, `LLM_LIVE_EVAL_MAX_REQUESTS` | `false`, `0`; an explicit live evaluation needs both opt-in and a positive finite cap. |
+| `WORKER_PROVIDER_REQUESTS_PER_MINUTE` | Phase 5 mock worker admission rate, default 60 across processes sharing the database. No hosted request is enabled by this setting. |
 
 The composition root selects `LLM_OPENAI_MODEL`; the mock always uses `mock-v1`. Unknown providers fail validation. Byte/token caps apply independently; over-limit full prompts yield static-only results. Context contains changed lines and at most two adjacent supporting lines, in deterministic order; omitted lines are disclosed. No PR description or unrelated supporting file is sent. Context sent to a real provider must be explicitly authorized; redaction cannot guarantee that source is no longer sensitive.
 

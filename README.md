@@ -4,7 +4,7 @@ Canonical repository: [allenuh/shrike](https://github.com/allenuh/shrike).
 
 Shrike is an AI-assisted GitHub code review platform under development. The planned workflow will validate GitHub App webhooks, queue Python-focused reviews, combine Ruff and Semgrep findings with validated LLM suggestions, and publish feedback to GitHub. A dashboard will show history, findings, and metrics.
 
-**Current status: standalone Phase 4 analysis engine, verified offline.** The backend has scoped read APIs, SQLAlchemy/Alembic persistence, secure GitHub metadata ingestion, and a queue/HTTP-independent snapshot review engine. It combines isolated Ruff with a deterministic mock or explicitly opted-in OpenAI adapter, validates changed-line evidence, and supports scoped caching, dry runs, evaluation, and persistent spending reservations. No real OpenAI request or live GitHub smoke test has been performed. Frontend, queue-driven review execution, publication, Redis/Celery transport, CI workflow, and cloud deployment remain deferred.
+**Current status: Phase 5 asynchronous review processing, verified locally with mocked integrations.** Signed webhooks commit an outbox; a dispatcher sends ID-only Celery tasks through Redis; workers fetch authorized immutable snapshots and run isolated Ruff plus deterministic mock AI. PostgreSQL persists fenced attempts, results/findings, retry schedules and publication eligibility. The standalone guarded OpenAI evaluator remains separate; queued processing is mock-only. No real model request, live GitHub smoke test, published feedback, frontend, CI workflow or cloud deployment is claimed.
 
 ## Project documents
 
@@ -12,6 +12,7 @@ Shrike is an AI-assisted GitHub code review platform under development. The plan
 - [Architecture](docs/ARCHITECTURE.md): repository layout, interfaces, lifecycle, schema, decisions, and threat model.
 - [AI cost controls](docs/AI_COST_CONTROLS.md): mock-only development, the approximate $10 API budget, and future paid-request safeguards.
 - [Analysis and evaluation commands](docs/runbooks/analysis-local.md): offline fixtures, reports, dry runs, restricted scanner, and separately opted-in live evaluation.
+- [Asynchronous processing](docs/runbooks/async-processing.md): Redis/Celery setup, offline end-to-end tests, worker/dispatcher commands, recovery and guarded job inspection/retry.
 - [Roadmap](docs/ROADMAP.md): phases, measurable acceptance criteria, and validation status.
 - [Agent instructions](AGENTS.md): rules for future implementation tasks.
 - [Backend setup and manual verification](docs/runbooks/backend-local.md): exact local commands.
@@ -50,7 +51,7 @@ uv --cache-dir .cache/uv run --locked mypy
 uv --cache-dir .cache/uv run --locked python scripts/test_backend.py -q
 ```
 
-The test runner creates a unique temporary PostgreSQL container and a disposable database per integration test, then removes them. It does not use the demo database or existing `.env`. Initial dependency/image downloads need registry access; test execution makes no GitHub, LLM, or paid-service calls. See the runbook for running unit tests without Docker.
+The test runner creates unique temporary PostgreSQL and authenticated Redis containers, a disposable database per integration test, and random broker namespaces, then cleans them up. It does not use the demo database or existing `.env`. Initial dependency/image downloads need registry access; GitHub/AI test integrations are mocked. The real Celery transport/Ruff tests use local Docker only. See the runbook for running unit tests without Docker.
 
 Protected history APIs deny access by default. Development authentication requires an explicit opt-in, generated bearer token, and server-side installation/repository grants. Webhooks are disabled by default and use independent HMAC authentication when configured. Installing the App never grants all dashboard users access. Real GitHub user login remains deferred; this is not a production user-facing service.
 
@@ -60,6 +61,6 @@ A real GitHub App and publicly reachable HTTPS webhook URL are needed only when 
 
 AI development uses deterministic mocks exclusively (`AI_PROVIDER=mock`). The guarded hosted adapter requires explicit opt-in, verified model/pricing/token bounds, and a reconciled PostgreSQL budget. It reserves cost before sending, warns at $7.50, and stops new spending at $9.00; uncertain charges stay reserved. CI/tests use fake responses. The example price profile deliberately does not approve token bounds, so it cannot enable live requests. See the cost-control document for verification and billing limitations.
 
-The user requested persistence/read APIs as Phase 2, GitHub ingestion as Phase 3, and the standalone analysis engine plus guarded hosted adapter as Phase 4. Phase 4 brings necessary scanner and cost-control work forward under [ADR 0003](docs/adr/0003-analysis-engine-scope.md). Remaining foundations, broker/fenced job execution, optional Semgrep, publishing, and the authenticated dashboard remain separate work. Complete local hardening before cloud work. Meaningful verified tasks are committed automatically; completed verified phases are pushed under `AGENTS.md`.
+The user requested persistence/read APIs as Phase 2, GitHub ingestion as Phase 3, standalone analysis as Phase 4, and asynchronous processing as Phase 5. [ADR 0004](docs/adr/0004-asynchronous-processing.md) brings broker/fenced execution into Phase 5 and moves publication to Phase 5B. Remaining foundations, optional Semgrep, publishing and the authenticated dashboard remain separate work. The trusted host runs worker/scanner orchestration; do not mount a Docker socket into an API/worker container. Complete local hardening before cloud work. Verified tasks are committed automatically; completed phases are pushed under `AGENTS.md`.
 
 Shrike will not run repository code, install repository dependencies, apply automatic fixes, or treat LLM output as trusted instructions. Reviews are advisory and will not gate merges in the MVP.

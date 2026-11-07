@@ -2,7 +2,7 @@
 name = "shrike-worker"
 version = "0.1.0"
 requires-python = ">=3.12,<3.13"
-dependencies = ["shrike-backend"]
+dependencies = ["shrike-backend", "celery[redis]==5.6.3", "redis==6.4.0"]
 
 [build-system]
 requires = ["hatchling==1.27.0"]

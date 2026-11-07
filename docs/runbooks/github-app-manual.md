@@ -1,6 +1,6 @@
 # GitHub App registration and live verification: manual operator steps
 
-These account, key, tunnel, and real-repository steps have **not** been performed by Codex. The implementation is verified with synthetic fixtures and mocked GitHub responses. Follow this runbook only when you intentionally configure a test GitHub installation; prefer a disposable repository with invented code/data. No LLM or publishing is enabled.
+These account, key, tunnel, and real-repository steps have **not** been performed by Codex. GitHub behavior is verified with synthetic fixtures/mocked responses. Follow this runbook only when intentionally configuring a test installation. Phase 5 uses the separate [Redis/Celery runbook](async-processing.md) for automatic execution with mock AI; no hosted model or publishing is enabled. Prefer a disposable repository with invented code/data.
 
 ## Permissions verified against current documentation
 

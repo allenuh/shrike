@@ -27,21 +27,29 @@ class SqlAnalysisStore:
     def _repository(self, session: Session, request: ReviewInput) -> tuple[Repository, int]:
         if RepositoryGrant(request.installation_id, request.repository_id) not in self.scope.grants:
             raise ReviewError("repository_denied")
-        pair = session.execute(
-            select(Repository, Installation.access_generation)
-            .join(Installation)
+        installation = session.scalar(
+            select(Installation)
             .where(
-                Repository.github_id == request.repository_id,
                 Installation.github_id == request.installation_id,
-                Repository.status == RepositoryStatus.ACTIVE,
-                Repository.access_blocked.is_(False),
                 Installation.status == InstallationStatus.ACTIVE,
             )
             .with_for_update()
-        ).one_or_none()
-        if pair is None or (pair[0].private and not request.private):
+        )
+        if installation is None:
             raise ReviewError("repository_denied")
-        return pair[0], pair[1]
+        repository = session.scalar(
+            select(Repository)
+            .where(
+                Repository.github_id == request.repository_id,
+                Repository.installation_id == installation.id,
+                Repository.status == RepositoryStatus.ACTIVE,
+                Repository.access_blocked.is_(False),
+            )
+            .with_for_update()
+        )
+        if repository is None or (repository.private and not request.private):
+            raise ReviewError("repository_denied")
+        return repository, installation.access_generation
 
     def authorize(self, request: ReviewInput) -> None:
         with self.database.session() as session:

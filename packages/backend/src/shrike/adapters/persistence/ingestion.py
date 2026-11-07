@@ -13,7 +13,15 @@ from shrike.domain.states import InstallationStatus, JobState, PullRequestState,
 
 from .database import Database
 from .dispatch import enqueue, reschedule
-from .models import Installation, PullRequest, QueueMessage, Repository, ReviewJob, WebhookDelivery
+from .models import (
+    Installation,
+    PullRequest,
+    QueueMessage,
+    Repository,
+    ReviewExecution,
+    ReviewJob,
+    WebhookDelivery,
+)
 
 POLICY_DIGEST = hashlib.sha256(b"shrike-ingestion-v1:trusted-same-repository-only").hexdigest()
 
@@ -31,7 +39,36 @@ def _cancel(
     )
     if repository_ids is not None:
         statement = statement.where(ReviewJob.repository_id.in_(repository_ids))
-    session.execute(statement.values(state=JobState.CANCELED, finished_at=datetime.now(UTC)))
+    session.execute(
+        statement.values(
+            state=JobState.CANCELED,
+            finished_at=datetime.now(UTC),
+            publication_eligible=False,
+            lease_token=None,
+            lease_expires_at=None,
+        )
+    )
+    invalid = update(ReviewJob).where(ReviewJob.installation_id == installation_id)
+    if repository_ids is not None:
+        invalid = invalid.where(ReviewJob.repository_id.in_(repository_ids))
+    session.execute(invalid.values(publication_eligible=False))
+    _close_canceled(session, installation_id)
+
+
+def _close_canceled(session: Session, installation_id: UUID) -> None:
+    session.execute(
+        update(ReviewExecution)
+        .where(
+            ReviewExecution.state == JobState.RUNNING,
+            ReviewExecution.job_id.in_(
+                select(ReviewJob.id).where(
+                    ReviewJob.installation_id == installation_id,
+                    ReviewJob.state == JobState.CANCELED,
+                )
+            ),
+        )
+        .values(state=JobState.CANCELED, finished_at=datetime.now(UTC), error_code="job_canceled")
+    )
 
 
 def accept_delivery(
@@ -186,9 +223,12 @@ def _upsert_repository(
 
 
 class SqlIngestionStore:
-    def __init__(self, database: Database, receipt_id: UUID | None = None) -> None:
+    def __init__(
+        self, database: Database, receipt_id: UUID | None = None, lease_seconds: float = 600
+    ) -> None:
         self.database = database
         self.receipt_id = receipt_id
+        self.lease_seconds = lease_seconds
 
     def claim(self) -> IngestionClaim | None:
         now = datetime.now(UTC)
@@ -253,7 +293,7 @@ class SqlIngestionStore:
                     blocked = "repository_removed"
             fence = uuid4()
             receipt.state, receipt.lease_token = "processing", fence
-            receipt.lease_expires_at = now + timedelta(minutes=10)
+            receipt.lease_expires_at = now + timedelta(seconds=self.lease_seconds)
             receipt.attempts += 1
             return IngestionClaim(
                 receipt.id, fence, installation.access_generation, incoming, blocked
@@ -370,8 +410,28 @@ class SqlIngestionStore:
                             literal(result.reason is not None),
                         ),
                     )
-                    .values(state=JobState.CANCELED, finished_at=datetime.now(UTC))
+                    .values(
+                        state=JobState.CANCELED,
+                        finished_at=datetime.now(UTC),
+                        lease_token=None,
+                        lease_expires_at=None,
+                        publication_eligible=False,
+                        error_code="superseded",
+                    )
                 )
+                session.execute(
+                    update(ReviewJob)
+                    .where(
+                        ReviewJob.pull_request_id == pr.id,
+                        or_(
+                            ReviewJob.head_sha != pr.head_sha,
+                            ReviewJob.base_sha != pr.base_sha,
+                            literal(result.reason is not None),
+                        ),
+                    )
+                    .values(publication_eligible=False)
+                )
+                _close_canceled(session, installation.id)
                 if result.reason is None:
                     job_id = session.scalar(
                         insert(ReviewJob)

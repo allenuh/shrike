@@ -122,6 +122,8 @@ def seed_demo(session: Session) -> bool:
             created_at=created,
             started_at=started,
             finished_at=finished,
+            attempt_count=1 if started else 0,
+            first_started_at=started,
         )
         jobs.append(job)
     session.add_all(jobs)

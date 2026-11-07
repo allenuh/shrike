@@ -43,3 +43,7 @@ testpaths = ["tests"]
 addopts = "-ra --strict-markers"
 markers = ["integration: requires an explicitly supplied disposable PostgreSQL database"]
 filterwarnings = ["error"]
+
+[[tool.mypy.overrides]]
+module = ["celery.*", "kombu.*"]
+ignore_missing_imports = true

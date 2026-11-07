@@ -52,7 +52,9 @@ class SqlDispatchStore:
         )
         review = exists(
             select(ReviewJob.id).where(
-                ReviewJob.id == QueueMessage.record_id, ReviewJob.state == JobState.PENDING
+                ReviewJob.id == QueueMessage.record_id,
+                ReviewJob.state == JobState.PENDING,
+                ReviewJob.available_at <= now,
             )
         )
         with self.database.session() as session, session.begin():

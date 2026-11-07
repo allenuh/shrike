@@ -19,6 +19,7 @@ from shrike.domain.review import (
     ReviewLimits,
 )
 from shrike.ports.ai_budget import SpendingLedger
+from shrike.ports.execution import RequestAdmission
 from shrike.ports.review import AnalysisStore, Analyzer, LLMProvider
 
 
@@ -35,12 +36,14 @@ class ReviewEngine:
         live_enabled: bool = False,
         allow_private: bool = False,
         model_allowlist: tuple[str, ...] = (),
+        admission: RequestAdmission | None = None,
     ) -> None:
         self.analyzer, self.provider, self.store = analyzer, provider, store
         self.limits = limits or ReviewLimits()
         self.ledger, self.pricing = ledger, pricing
         self.live_enabled, self.allow_private = live_enabled, allow_private
         self.model_allowlist = model_allowlist
+        self.admission = admission
         self._concurrency = threading.BoundedSemaphore(self.limits.max_concurrency)
         self._repositories = tuple(threading.Lock() for _ in range(64))
 
@@ -87,6 +90,7 @@ class ReviewEngine:
             (candidate, "ruff") for file in files for candidate in self.analyzer.analyze(file)
         ]
         reason: str | None = None
+        retry_at = None
         estimated: int | None = 0 if self.provider.name == "mock" else None
         actual: int | None = None
         input_tokens = output_tokens = None
@@ -112,17 +116,23 @@ class ReviewEngine:
                     if self.ledger is None:
                         raise ReviewError("ledger_unavailable")
                     self.store.authorize(request)
-                    warning = self.ledger.reserve(
-                        digest,
-                        estimated,
-                        self.pricing,
-                        token_bound,
-                        self.limits.max_output_tokens,
-                        hashlib.sha256(
-                            f"{request.installation_id}:{request.repository_id}:"
-                            f"{request.base_sha}:{request.head_sha}".encode()
-                        ).hexdigest(),
-                    )
+            if not dry_run and self.admission is not None:
+                self.admission.acquire()
+            if self.provider.name != "mock" and not dry_run:
+                assert (
+                    self.ledger is not None and self.pricing is not None and estimated is not None
+                )
+                warning = self.ledger.reserve(
+                    digest,
+                    estimated,
+                    self.pricing,
+                    token_bound,
+                    self.limits.max_output_tokens,
+                    hashlib.sha256(
+                        f"{request.installation_id}:{request.repository_id}:"
+                        f"{request.base_sha}:{request.head_sha}".encode()
+                    ).hexdigest(),
+                )
             if not dry_run and files and count:
                 try:
                     reply = self.provider.review(context, self.limits.max_output_tokens)
@@ -141,6 +151,7 @@ class ReviewEngine:
             reason = "model_output_invalid"
         except ReviewError as exc:
             reason = exc.code
+            retry_at = exc.retry_at
         selected = {file.path: file for file in files}
         # Only evidence actually shown to the model can support its findings.
         shown = {
@@ -239,6 +250,7 @@ class ReviewEngine:
             )
         )
         report = Report(
+            retry_at=retry_at,
             analysis_hash=digest,
             pricing_verified_at=None
             if self.pricing is None

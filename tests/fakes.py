@@ -74,3 +74,36 @@ class FakeGitHub:
 
     def blob(self, installation_id: int, repository: GitHubRepository, sha: str) -> bytes:
         raise AssertionError("Ingestion must not fetch source")
+
+
+class ReviewGitHub(FakeGitHub):
+    """Synthetic immutable source port for review-worker integration tests only."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.source = b"value = 10 / 0\n"
+        self.file_sha = "c" * 40
+        self.on_blob: Callable[[], None] | None = None
+
+    def files(
+        self, installation_id: int, repository: GitHubRepository, number: int
+    ) -> tuple[GitHubFile, ...]:
+        self._call("files")
+        return (GitHubFile(self.file_sha, "demo.py", "added", 1, 0),)
+
+    def diff(self, installation_id: int, repository: GitHubRepository, number: int) -> bytes:
+        self._call("diff")
+        return (
+            b"diff --git a/demo.py b/demo.py\n--- a/demo.py\n+++ b/demo.py\n@@ -0,0 +1 @@\n+"
+            + self.source
+        )
+
+    def head_commit(self, installation_id: int, repository: GitHubRepository, sha: str) -> str:
+        self._call("head_commit")
+        return sha
+
+    def blob(self, installation_id: int, repository: GitHubRepository, sha: str) -> bytes:
+        self._call("blob")
+        if self.on_blob:
+            self.on_blob()
+        return self.source
