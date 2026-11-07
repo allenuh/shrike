@@ -1,0 +1,15 @@
+# ADR 0004: Phase 5 asynchronous processing
+
+Date: 2026-11-06. Status: accepted for implementation under the user's new Phase 5 request.
+
+The user redefines Phase 5 as Redis/Celery ingestion and review execution, including retries, recovery, concurrency, correlation and development operations. This brings the required Phase 2B scheduling work forward; the previously planned publication phase becomes Phase 5B. No comments, dashboard, cloud resources, real GitHub or model calls are authorized by implementation.
+
+Use a PostgreSQL transactional outbox for both delivery and review IDs. API acceptance commits metadata/outbox only; no broker, GitHub or model call is in the HTTP acknowledgement path. An independent dispatcher publishes bounded versioned ID-only messages. Publish ambiguity and Redis loss produce safe redelivery; PostgreSQL leases/fences and source state decide whether work may run. Database scheduling owns bounded review retries with exponential backoff, not Celery autoretry or long broker ETA messages.
+
+Review claims serialize per repository and capture installation access generation and immutable PR identity. Leases, attempt history and deadlines fence dead/stale workers. Recheck canonical GitHub state before snapshot gathering and before committing results; completed stale results are ineligible for future publication. A future publisher must recheck canonical state immediately before a write; this phase cannot promise atomic GitHub cancellation because it performs no publication.
+
+Reuse the isolated Ruff runner from the trusted operator host. Celery runs as a host/WSL/Linux process; never mount a Docker socket into API/worker containers. PostgreSQL and Redis are the only required local infrastructure. Use mock AI exclusively in automated processing for this phase: the explicitly opted-in standalone hosted evaluator remains separate, so queue/restart retries cannot silently generate paid requests. A PostgreSQL provider-admission clock limits mock invocations across workers and is placed before any model dispatch. Future queued hosted operation must preserve the existing spending gate and separately prove retry/cost behavior.
+
+Persist terminal report JSON plus normalized findings and execution metadata in one fenced transaction. PostgreSQL remains authoritative for attempts, safe errors, retry times and recovery. Development inspection/retry is an explicitly guarded CLI, not a public mutation endpoint; retries preserve history and the lifetime attempt ceiling. No arbitrary source, payloads, exception text, Redis URLs, credentials or Celery result bodies enter operational logs.
+
+Migrations add outbox and execution scheduling fields without erasing Phase 2/3/4 data. Existing job identity already includes installation ownership, repository/PR, base/head and analysis policy; retain those stronger bounds rather than discarding base/policy identity. Legacy pending records are backfilled for dispatch. No pre-existing user data is modified for tests; use disposable PostgreSQL/Redis and fake GitHub/AI only.

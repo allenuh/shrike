@@ -59,7 +59,13 @@ async def github_webhook(request: Request) -> JSONResponse:
     def persist() -> bool:
         try:
             with database.session() as session, session.begin():
-                return accept_delivery(session, delivery, hashlib.sha256(raw).hexdigest(), incoming)
+                return accept_delivery(
+                    session,
+                    delivery,
+                    hashlib.sha256(raw).hexdigest(),
+                    incoming,
+                    UUID(request.state.request_id),
+                )
         except WebhookConflict:
             raise ApiError(409, "webhook_identity_conflict", "Webhook identity conflict") from None
 

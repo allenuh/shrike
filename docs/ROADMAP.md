@@ -15,7 +15,8 @@ Use `not started`, `in progress`, `blocked`, or `verified`. A phase is `verified
 | 3 | Secure GitHub App integration and PR ingestion | Verified: 185 tests, migrations/security/CLI checks, lint/types, configuration and documentation validation passed |
 | 3B | Safe immutable snapshots and static analysis | Partly absorbed into Phase 4: restricted Ruff/snapshot parser; queue integration and Semgrep remain deferred |
 | 4 | Standalone AI-assisted analysis, guarded provider, reports and cost ledger | Verified to offline/mocked scope: 267 tests, isolated Ruff, migrations, budget/cache/security checks, lint/types and evaluation passed |
-| 5 | GitHub publication and recovery | Not started |
+| 5 | Asynchronous ingestion/review processing through Redis/Celery | In progress: durable outbox milestone verified; worker execution and real-broker verification remain |
+| 5B | GitHub publication and recovery | Not started; moved after asynchronous processing by the user's Phase 5 request |
 | 6 | Authenticated dashboard and metrics | Not started |
 | 7 | Local MVP hardening and portfolio evidence | Not started |
 | 8 | Live model evaluation and operational accounting hardening | Separate follow-up; guarded adapter/ledger brought forward into Phase 4 |
@@ -179,7 +180,13 @@ Verification record (2026-11-06 client date, Windows/PowerShell, Python 3.12.6, 
 
 Remaining manual/deferred steps: [analysis-local.md](runbooks/analysis-local.md) documents offline commands and separately opted-in live setup/evaluation. No real OpenAI request, real model quality/encoding compatibility, billing reconciliation, account balance, or invoice ceiling is verified. The shipped price profile leaves bounded-token approval false. Semgrep, deployed runner/queue leases and 180-second queued attempt deadlines, billing recovery/audit workflows, retention automation, publishing, dashboard, and cloud remain deferred. The feature commit/push are authorized after final staged review; Git history and the task report record their actual results.
 
-## Phase 5: GitHub REST adapter and publication
+## Phase 5: asynchronous pull request processing
+
+The user's current request supersedes the earlier publication scope. [ADR 0004](adr/0004-asynchronous-processing.md) brings the necessary Phase 2B outbox/broker/job lifecycle work into Phase 5. Do not implement publication, a dashboard, new infrastructure services, or real external integration calls. Use PostgreSQL as the durable authority, Redis/Celery as ID-only transport, existing isolated analysis, bounded/fenced retries, repository concurrency, provider admission, safe correlation logs and guarded development operations.
+
+Milestone 1 verified (2026-11-06 client date): migration `0004_outbox` adds/backfills ID-only dispatch records. Webhook receipt acceptance and canonical review-job creation enqueue transactionally; broker calls never occur in the webhook handler. Dispatcher leases and scheduling survive publish failure, lost confirmation and lost broker messages; generations fence old confirmations. Scoped ingestion claims process only the addressed receipt. `uv --cache-dir .cache/uv run --locked --offline python scripts/test_backend.py -q`: **272 passed in 25.63 seconds**; Ruff lint passed, formatting checked **94 files**, strict mypy passed **81 files**. Migration up/down/up and metadata agreement passed. The phase remains incomplete pending the real Celery/Redis worker, fenced execution, operations and end-to-end failure verification.
+
+## Phase 5B: GitHub REST adapter and publication
 
 Extend the Phase 3 read-only GitHub adapter with advisory reviews and publication reconciliation. Add Pull requests write permission only when this publishing phase is implemented and explicitly configured; retain scoped short-lived credentials and mocked contracts. No write permission or publishing endpoint is present in Phase 3.
 

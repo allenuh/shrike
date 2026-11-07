@@ -40,6 +40,12 @@ Migration `0003_analysis` adds four tables: `analysis_reports`, `ai_budgets`, `a
 
 ## Historical repository baseline
 
+## Phase 5 implementation in progress
+
+[ADR 0004](adr/0004-asynchronous-processing.md) rebaselines Phase 5 to asynchronous processing; publication becomes Phase 5B. The first verified milestone adds `queue_messages` in migration `0004_outbox` (twelve application tables). API acceptance and canonical job creation write one unique outbox row per kind/record in the same transaction. A small versioned envelope carries only kind, record UUID and generation. HTTP request correlation stays in PostgreSQL. The dispatcher leases rows, sends through `JobPublisher`, and records confirmation under a fence; crashes or broker loss may republish safely. Broker outage backoff does not consume analysis attempts. Celery and fenced analysis execution are the next milestone, not claimed by the outbox alone.
+
+## Historical initial inspection
+
 At the original planning inspection, one commit (`b4066e5`, `first commit`) tracked only a title-only `README.md`. A local untracked `.gitignore` contained `.env`; a local ignored `.env` existed and its contents were not read. There were no application files, manifests, migrations, tests, CI workflows, infrastructure files, or applicable ancestor `AGENTS.md` instructions. Phase 0 added planning documents and templates; Phase 2 subsequently added the backend baseline above.
 
 ## Proposed repository layout

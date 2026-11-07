@@ -292,6 +292,28 @@ class AnalysisReport(IdentityMixin, Base):
     report: Mapped[dict[str, Any]] = mapped_column(JSONB)
 
 
+class QueueMessage(IdentityMixin, Base):
+    __tablename__ = "queue_messages"
+    __table_args__ = (
+        UniqueConstraint("kind", "record_id", name="uq_queue_record"),
+        CheckConstraint("kind IN ('ingestion','review')", name="kind"),
+        CheckConstraint("generation >= 0 AND failures BETWEEN 0 AND 20", name="counters"),
+        CheckConstraint("(lease_token IS NULL) = (lease_expires_at IS NULL)", name="lease"),
+        Index("ix_queue_due", "available_at", "published_at"),
+    )
+    kind: Mapped[str] = mapped_column(String(16))
+    record_id: Mapped[uuid.UUID] = mapped_column(Uuid)
+    request_id: Mapped[uuid.UUID] = mapped_column(Uuid, default=uuid.uuid4)
+    generation: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    failures: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    available_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    lease_token: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    lease_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
 class AiBudget(Base):
     __tablename__ = "ai_budgets"
     __table_args__ = (

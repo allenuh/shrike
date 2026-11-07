@@ -12,7 +12,8 @@ from shrike.domain.ingestion import IncomingWebhook, IngestionClaim, IngestionRe
 from shrike.domain.states import InstallationStatus, JobState, PullRequestState, RepositoryStatus
 
 from .database import Database
-from .models import Installation, PullRequest, Repository, ReviewJob, WebhookDelivery
+from .dispatch import enqueue, reschedule
+from .models import Installation, PullRequest, QueueMessage, Repository, ReviewJob, WebhookDelivery
 
 POLICY_DIGEST = hashlib.sha256(b"shrike-ingestion-v1:trusted-same-repository-only").hexdigest()
 
@@ -34,7 +35,11 @@ def _cancel(
 
 
 def accept_delivery(
-    session: Session, delivery_id: str, digest: str, incoming: IncomingWebhook
+    session: Session,
+    delivery_id: str,
+    digest: str,
+    incoming: IncomingWebhook,
+    request_id: UUID | None = None,
 ) -> bool:
     """Caller commits receipt and revocations together. Returns False for an exact replay."""
     row_id = session.scalar(
@@ -137,6 +142,8 @@ def accept_delivery(
             _cancel(session, installation.id, [repository.id])
     elif incoming.ignored_reason:
         _finish(receipt, "ignored", incoming.ignored_reason)
+    if receipt.state == "pending":
+        enqueue(session, "ingestion", receipt.id, request_id)
     return True
 
 
@@ -179,8 +186,9 @@ def _upsert_repository(
 
 
 class SqlIngestionStore:
-    def __init__(self, database: Database) -> None:
+    def __init__(self, database: Database, receipt_id: UUID | None = None) -> None:
         self.database = database
+        self.receipt_id = receipt_id
 
     def claim(self) -> IngestionClaim | None:
         now = datetime.now(UTC)
@@ -188,12 +196,15 @@ class SqlIngestionStore:
             receipt = session.scalar(
                 select(WebhookDelivery)
                 .where(
+                    literal(True)
+                    if self.receipt_id is None
+                    else WebhookDelivery.id == self.receipt_id,
                     or_(
                         (WebhookDelivery.state == "pending")
                         & (WebhookDelivery.available_at <= now),
                         (WebhookDelivery.state == "processing")
                         & (WebhookDelivery.lease_expires_at <= now),
-                    )
+                    ),
                 )
                 .order_by(WebhookDelivery.created_at, WebhookDelivery.id)
                 .with_for_update(skip_locked=True)
@@ -269,6 +280,7 @@ class SqlIngestionStore:
         if installation.access_generation != claim.generation:
             _finish(receipt, "pending", "installation_changed")
             receipt.available_at = datetime.now(UTC)
+            reschedule(session, "ingestion", receipt.id, receipt.available_at)
             return None
         return receipt, installation
 
@@ -361,7 +373,7 @@ class SqlIngestionStore:
                     .values(state=JobState.CANCELED, finished_at=datetime.now(UTC))
                 )
                 if result.reason is None:
-                    session.execute(
+                    job_id = session.scalar(
                         insert(ReviewJob)
                         .values(
                             id=uuid4(),
@@ -374,6 +386,25 @@ class SqlIngestionStore:
                             state=JobState.PENDING,
                         )
                         .on_conflict_do_nothing(constraint="uq_job_analysis_identity")
+                        .returning(ReviewJob.id)
+                    )
+                    if job_id is None:
+                        job_id = session.scalar(
+                            select(ReviewJob.id).where(
+                                ReviewJob.pull_request_id == pr.id,
+                                ReviewJob.base_sha == pr.base_sha,
+                                ReviewJob.head_sha == pr.head_sha,
+                                ReviewJob.policy_digest == POLICY_DIGEST,
+                            )
+                        )
+                    assert job_id is not None
+                    message = session.scalar(
+                        select(QueueMessage).where(
+                            QueueMessage.kind == "ingestion", QueueMessage.record_id == receipt.id
+                        )
+                    )
+                    enqueue(
+                        session, "review", job_id, message.request_id if message else receipt.id
                     )
             _finish(receipt, "ignored" if result.reason else "completed", result.reason)
 
@@ -386,6 +417,7 @@ class SqlIngestionStore:
             if retry_at is not None and receipt.attempts < 3:
                 _finish(receipt, "pending", code)
                 receipt.available_at = max(datetime.now(UTC), retry_at)
+                reschedule(session, "ingestion", receipt.id, receipt.available_at)
             else:
                 _finish(receipt, "failed", code)
                 if code in {
