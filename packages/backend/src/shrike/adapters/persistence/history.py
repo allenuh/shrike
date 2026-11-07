@@ -39,6 +39,7 @@ def access_predicate(scope: ReadScope) -> ColumnElement[bool]:
         tuple_(Installation.github_id, Repository.github_id).in_(pairs)
         & (Installation.status == InstallationStatus.ACTIVE)
         & (Repository.status == RepositoryStatus.ACTIVE)
+        & ~Repository.access_blocked
     )
 
 

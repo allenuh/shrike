@@ -17,12 +17,12 @@ Use `not started`, `in progress`, `blocked`, or `verified`. A phase is `verified
 | 4 | Standalone AI-assisted analysis, guarded provider, reports and cost ledger | Verified to offline/mocked scope: 267 tests, isolated Ruff, migrations, budget/cache/security checks, lint/types and evaluation passed |
 | 5 | Asynchronous ingestion/review processing through Redis/Celery | Verified locally: real transport/storage/scanner, mocked GitHub/AI; fenced retries/concurrency/recovery and guarded operations pass |
 | 6 | Independent GitHub advisory publication and recovery (formerly 5B) | Verified locally: 349 tests, 91% coverage, mocked GitHub publication and real PostgreSQL/Redis/Celery/Ruff; evidence below |
-| 6B | Authenticated dashboard and metrics | Not started; deferred by the user's Phase 6 publication request |
-| 7 | Local MVP hardening and portfolio evidence | Not started |
+| 7 | Authenticated Shrike dashboard (formerly 6B) | In progress: backend auth/scoped metrics verified; frontend verification underway |
+| 7B | Local MVP hardening and portfolio evidence | Not started; deferred by the Phase 7 dashboard request |
 | 8 | Live model evaluation and operational accounting hardening | Separate follow-up; guarded adapter/ledger brought forward into Phase 4 |
 | 9 | AWS ECS, Terraform, OpenTelemetry | Not started; deferred |
 
-Phase 2 supplies backend prerequisites; Phase 3 adds the inbox; Phase 4 adds standalone analysis; Phase 5 connects asynchronous processing. The user-requested Phase 6 publication supersedes 5B under [ADR 0005](adr/0005-github-publication.md); dashboard work becomes 6B. Remaining local foundations, optional Semgrep/deployed-runner validation, publication, dashboard and hardening remain separately requested work. Phases 8/9 require a verified local MVP; cloud does not require a paid model. Historical phase records retain their original validation snapshots.
+Phase 2 supplies backend prerequisites; Phase 3 adds the inbox; Phase 4 adds standalone analysis; Phase 5 connects asynchronous processing. The user-requested Phase 6 publication supersedes 5B under [ADR 0005](adr/0005-github-publication.md); dashboard work initially became 6B. [ADR 0006](adr/0006-saas-dashboard.md) moves the user-requested dashboard into Phase 7 and defers hardening to 7B. Remaining local foundations, optional Semgrep/deployed-runner validation, publication, dashboard and hardening remain separately requested work. Phases 8/9 require a verified local MVP; cloud does not require a paid model. Historical phase records retain their original validation snapshots.
 
 ## Project identity and AI budget update
 
@@ -239,19 +239,28 @@ Implementation and verification (2026-11-07 client date):
 
 The [publication runbook](runbooks/github-publication.md) includes test repository/App permission-upgrade instructions, private local preview, explicit publish commands, duplicate/stale/revocation checks, metadata inspection, migration precautions and uncertainty investigation. Real App registration/permission consent, tunnel, live PR creation, actual GitHub publication and manual end-to-end smoke validation remain **unperformed**; live verification is optional and separate from this local/mocked phase gate. Automated publication scheduling, retention and production deployment remain deferred. Git history and the task report record feature commits and any completed-phase push after staged validation.
 
-## Phase 6B: authenticated dashboard
+## Phase 7: authenticated SaaS dashboard (formerly 6B)
 
 Implement backend GitHub App user authorization, opaque sessions, server-side access checks, typed frontend API access, and the read-only dashboard. Use mock identities only in local/test mode.
 
 Acceptance criteria:
 
-- Test OAuth state expiry/replay, callback allowlisting, credential expiry/refresh, logout/session revocation, cookie flags, CSRF/Origin enforcement, and production rejection of mock-auth bypass.
+- Test OAuth state expiry/replay, callback allowlisting, credential expiry and required reauthorization (refresh tokens are deliberately discarded), logout/session revocation, cookie flags, CSRF/Origin enforcement, and production rejection of mock-auth bypass.
 - Test two users with different repository access; cross-repository list/detail/finding/metrics requests leak no data. Revocation invalidates known grants immediately; unobserved permission changes expire within the 60-second access-cache bound.
 - List repositories/runs, paginate history, filter findings, inspect attempts/coverage/publication uncertainty, and display severity counts, success/failure rates, queue wait, and duration. Define metric denominators/window explicitly and scope them before aggregation.
 - Render untrusted finding text safely; no raw HTML, scriptable links, tokens, or private source in client logs. Backend tokens never enter the browser bundle/storage.
 - Component/E2E checks cover loading/empty/error/unauthorized/partial/degraded states, keyboard interaction, and desktop/mobile layouts. Type checks and production build pass.
 
-## Phase 7: local MVP hardening and demonstration
+Implementation progress (2026-11-07 client date):
+
+- [ADR 0006](adr/0006-saas-dashboard.md) records the requested phase rebaseline, fixed review policy, encrypted server sessions, one-hour reauthentication tradeoff, Next.js BFF boundary, synthetic demo separation and migration implications. No architecture replacement, hosted service, paid model or unrequested hardening work is added.
+- Backend checkpoint: GitHub App OAuth with S256 PKCE and fixed callbacks, single-use five-minute cookie-bound state, opaque HttpOnly/SameSite sessions, encrypted credentials, session rotation/expiry/logout, same-origin POST enforcement and fresh GitHub membership on every read. SQL-scoped history/metrics/detail/evidence/operations respect paired grants and local revocation/access blocking. Migration `0007_dashboard` adds state/session tables and readiness gating.
+- `uv --cache-dir .cache/uv run --locked --offline --no-sync python scripts/test_backend.py -q --cov=shrike --cov=shrike_api --cov=shrike_worker --cov-report=term --tb=short`: **378 passed in 81.75 seconds, 92% statement coverage**, Windows/Python 3.12.6. Includes migration up/down/up/metadata, mocked OAuth/token exchange, state expiry/replay/cookie binding, encrypted session persistence/rotation/expiry/logout, Origin denial, two-user isolation, inaccessible UUIDs/snippets/metrics, membership/local revocation and authorization outages. Earlier targeted auth/dashboard/migration run: **27 passed in 7.11 seconds**. Backend unit-only run: **175 passed in 2.71 seconds**.
+- Backend lint/format/type/lock checks passed: `uv --cache-dir .cache/uv run --locked --offline --no-sync ruff check .`; `uv --cache-dir .cache/uv run --locked --offline --no-sync ruff format --check .` (**137 files**); `uv --cache-dir .cache/uv run --locked --offline --no-sync mypy` (**120 files**); `uv --cache-dir .cache/uv lock --check --offline` (**62 packages**).
+- Frontend source covers all six requested pages, typed validated API data, URL filters/pagination, loading/error/retry/empty states, mobile navigation and seeded read-only demo. Final browser verification is still underway; the phase is not yet complete. Dependency installation was initially rejected by automatic review under AGENTS.md; the user explicitly authorized the pinned dashboard/test tooling exception with lifecycle scripts disabled. ESLint 9 is retained for current Next plugin peer compatibility; an ESLint 10 trial produced invalid peers and was reverted.
+- [dashboard-local.md](runbooks/dashboard-local.md) documents exact demo/live setup, test commands, repository-scoped metrics, operational telemetry limits and manual validation. Real GitHub OAuth/App setup and live end-to-end verification remain **unperformed**. No paid AI call, private-code fetch, cloud deployment, global worker heartbeat or broker health claim is made.
+
+## Phase 7B: local MVP hardening and demonstration
 
 Complete the reproducible offline workflow, failure drills, privacy checks, operational metrics, and honest portfolio evidence. This is the local MVP release gate, not a production-hosting claim.
 

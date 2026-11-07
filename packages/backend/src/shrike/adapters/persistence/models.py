@@ -370,6 +370,23 @@ class ReviewPublication(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
+class OAuthState(Base):
+    __tablename__ = "oauth_states"
+    digest: Mapped[str] = mapped_column(String(64), primary_key=True)
+    verifier: Mapped[str] = mapped_column(Text)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+
+
+class DashboardSession(Base):
+    __tablename__ = "dashboard_sessions"
+    __table_args__ = (CheckConstraint("user_github_id > 0", name="user_id"),)
+    digest: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_github_id: Mapped[int] = mapped_column(BigInteger)
+    login: Mapped[str] = mapped_column(String(100))
+    encrypted_token: Mapped[str | None] = mapped_column(Text)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+
+
 class AiBudget(Base):
     __tablename__ = "ai_budgets"
     __table_args__ = (

@@ -2,6 +2,7 @@
 
 from pathlib import Path
 from typing import Literal
+from urllib.parse import urlsplit
 
 from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -46,6 +47,27 @@ class Settings(BaseSettings):
     github_publish_repository_grants: str = Field(
         default="", validation_alias="GITHUB_PUBLISH_REPOSITORY_GRANTS"
     )
+    github_user_auth_enabled: bool = Field(
+        default=False, validation_alias="GITHUB_USER_AUTH_ENABLED"
+    )
+    github_oauth_client_secret: SecretStr = Field(
+        default=SecretStr(""), validation_alias="GITHUB_OAUTH_CLIENT_SECRET"
+    )
+    dashboard_origin: str = Field(
+        default="http://localhost:3000", validation_alias="DASHBOARD_ORIGIN"
+    )
+    dashboard_token_key: SecretStr = Field(
+        default=SecretStr(""), validation_alias="DASHBOARD_TOKEN_KEY"
+    )
+
+    @property
+    def dashboard_callback(self) -> str:
+        return self.dashboard_origin + "/api/backend/auth/github/callback"
+
+    @property
+    def secure_dashboard_cookies(self) -> bool:
+        return self.dashboard_origin.startswith("https://")
+
     github_app_id: int = Field(default=0, ge=0, lt=2**63, validation_alias="GITHUB_APP_ID")
     github_app_client_id: str | None = Field(default=None, validation_alias="GITHUB_APP_CLIENT_ID")
     github_app_private_key_path: Path | None = Field(
@@ -68,6 +90,40 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def validate_security(self) -> "Settings":
         parse_grants(self.github_publish_repository_grants)
+        if self.github_user_auth_enabled:
+            from cryptography.fernet import Fernet
+
+            origin = urlsplit(self.dashboard_origin)
+            if (
+                origin.scheme not in {"http", "https"}
+                or not origin.hostname
+                or origin.username
+                or origin.password
+                or origin.path
+                or origin.query
+                or origin.fragment
+                or (
+                    origin.scheme == "http"
+                    and (
+                        self.app_env == "production"
+                        or origin.hostname not in {"localhost", "127.0.0.1", "::1"}
+                    )
+                )
+            ):
+                raise ValueError(
+                    "Dashboard requires a fixed HTTPS origin (loopback HTTP in development)"
+                )
+            if (
+                self.github_app_id <= 0
+                or not self.github_app_client_id
+                or not self.github_oauth_client_secret.get_secret_value()
+                or self.github_oauth_client_secret.get_secret_value().startswith("<")
+            ):
+                raise ValueError("User authorization requires explicit GitHub App credentials")
+            try:
+                Fernet(self.dashboard_token_key.get_secret_value().encode())
+            except Exception:
+                raise ValueError("Dashboard requires a generated Fernet encryption key") from None
         try:
             url = make_url(self.database_url.get_secret_value())
             if url.drivername != "postgresql+psycopg" or not url.database:

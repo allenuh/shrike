@@ -9,11 +9,17 @@ from fastapi.responses import Response
 from sqlalchemy import text
 from starlette.middleware.base import RequestResponseEndpoint
 
+from shrike.adapters.github.user_auth import GitHubUserAuthorization
 from shrike.adapters.persistence.database import Database
+from shrike.adapters.persistence.sessions import SqlSessionStore
+from shrike.application.auth import DashboardAuth
 from shrike.application.queries import FindingFilters, JobFilters, Pagination, RepositoryFilters
 from shrike.application.views import JobDetail
 from shrike.config import Settings
+from shrike.ports.auth import UserAuthorizationGateway
 
+from .auth import router as auth_router
+from .dashboard import router as dashboard_router
 from .dependencies import Reader, Scope
 from .errors import ApiError, error_response, register_errors
 from .logging import configure_logging
@@ -31,23 +37,47 @@ from .schemas import (
 from .webhooks import router as webhook_router
 
 
-def create_app(settings: Settings | None = None, database: Database | None = None) -> FastAPI:
+def create_app(
+    settings: Settings | None = None,
+    database: Database | None = None,
+    *,
+    auth_gateway: UserAuthorizationGateway | None = None,
+) -> FastAPI:
     config = settings if settings is not None else Settings()
     db = database if database is not None else Database(config.database_url.get_secret_value())
     logger = configure_logging()
+    owned_auth = None
+    dashboard_auth = None
+    if config.github_user_auth_enabled:
+        if auth_gateway is None:
+            owned_auth = GitHubUserAuthorization(
+                config.github_app_id,
+                config.github_app_client_id or "",
+                config.github_oauth_client_secret,
+                config.dashboard_callback,
+            )
+            auth_gateway = owned_auth
+        dashboard_auth = DashboardAuth(
+            SqlSessionStore(db, config.dashboard_token_key),
+            auth_gateway,
+            config.github_app_client_id or "",
+            config.dashboard_callback,
+        )
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         try:
             yield
         finally:
+            if owned_auth is not None:
+                owned_auth.close()
             if database is None:
                 db.dispose()
 
     app = FastAPI(
         title="Shrike backend",
         version="0.1.0",
-        description="Read API. Development authentication is opt-in; real user login is deferred.",
+        description="Scoped dashboard/history API with server-managed GitHub App sessions.",
         docs_url="/docs" if config.app_env != "production" else None,
         redoc_url=None,
         openapi_url="/openapi.json" if config.app_env != "production" else None,
@@ -55,8 +85,11 @@ def create_app(settings: Settings | None = None, database: Database | None = Non
         responses={status: {"model": ErrorResponse} for status in (401, 404, 422, 500, 503)},
     )
     app.state.settings, app.state.database = config, db
+    app.state.dashboard_auth = dashboard_auth
     register_errors(app)
     app.include_router(webhook_router)
+    app.include_router(auth_router)
+    app.include_router(dashboard_router)
 
     @app.middleware("http")
     async def request_metadata(request: Request, call_next: RequestResponseEndpoint) -> Response:
@@ -67,6 +100,10 @@ def create_app(settings: Settings | None = None, database: Database | None = Non
         except Exception:
             response = error_response(request, 500, "internal_error", "An internal error occurred")
         response.headers["X-Request-ID"] = request.state.request_id
+        response.headers["Cache-Control"] = "no-store"
+        response.headers["Vary"] = "Cookie, Authorization"
+        response.headers["Referrer-Policy"] = "no-referrer"
+        response.headers["X-Content-Type-Options"] = "nosniff"
         logger.info(
             "request",
             extra={
@@ -86,7 +123,7 @@ def create_app(settings: Settings | None = None, database: Database | None = Non
     def ready() -> dict[str, str]:
         with db.session() as session:
             revision = session.scalar(text("SELECT version_num FROM alembic_version"))
-        if revision != "0006_publication":
+        if revision != "0007_dashboard":
             raise ApiError(503, "schema_not_ready", "Database schema is not ready")
         return {"status": "ready"}
 
