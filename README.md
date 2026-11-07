@@ -4,13 +4,14 @@ Canonical repository: [allenuh/shrike](https://github.com/allenuh/shrike).
 
 Shrike is an AI-assisted GitHub code review platform under development. The planned workflow will validate GitHub App webhooks, queue Python-focused reviews, combine Ruff and Semgrep findings with validated LLM suggestions, and publish feedback to GitHub. A dashboard will show history, findings, and metrics.
 
-**Current status: Phase 3 GitHub App integration and PR ingestion, verified with mocks.** The backend has scoped read APIs, SQLAlchemy/Alembic persistence, raw-byte webhook authentication, a durable inbox, a metadata ingestion worker, and a read-only GitHub App client. Live account setup and a real GitHub smoke test remain manual and unperformed. There is no frontend, review executor, analyzer/LLM integration, publishing, Redis/Celery transport, CI workflow, or cloud deployment yet. Compose provides the development database.
+**Current status: standalone Phase 4 analysis engine, verified offline.** The backend has scoped read APIs, SQLAlchemy/Alembic persistence, secure GitHub metadata ingestion, and a queue/HTTP-independent snapshot review engine. It combines isolated Ruff with a deterministic mock or explicitly opted-in OpenAI adapter, validates changed-line evidence, and supports scoped caching, dry runs, evaluation, and persistent spending reservations. No real OpenAI request or live GitHub smoke test has been performed. Frontend, queue-driven review execution, publication, Redis/Celery transport, CI workflow, and cloud deployment remain deferred.
 
 ## Project documents
 
 - [Product requirements](docs/PRD.md): requirements, MVP limits, non-goals, risks, and costs.
 - [Architecture](docs/ARCHITECTURE.md): repository layout, interfaces, lifecycle, schema, decisions, and threat model.
 - [AI cost controls](docs/AI_COST_CONTROLS.md): mock-only development, the approximate $10 API budget, and future paid-request safeguards.
+- [Analysis and evaluation commands](docs/runbooks/analysis-local.md): offline fixtures, reports, dry runs, restricted scanner, and separately opted-in live evaluation.
 - [Roadmap](docs/ROADMAP.md): phases, measurable acceptance criteria, and validation status.
 - [Agent instructions](AGENTS.md): rules for future implementation tasks.
 - [Backend setup and manual verification](docs/runbooks/backend-local.md): exact local commands.
@@ -57,8 +58,8 @@ A real GitHub App and publicly reachable HTTPS webhook URL are needed only when 
 
 ## Implementation order
 
-AI development uses deterministic mocks exclusively. The planned hosted integration requires explicit opt-in, model configuration, conservative per-request cost reservations, and a persistent application-wide ledger that warns at $7.50 and stops new spending at $9.00. These controls and the provider interface are design requirements awaiting Phases 4/8; no live model or spending ledger is implemented. CI/tests remain mock-only. The buffer within the approximate $10 budget is not permission to spend. See the cost-control document for pricing verification and accounting limitations.
+AI development uses deterministic mocks exclusively (`AI_PROVIDER=mock`). The guarded hosted adapter requires explicit opt-in, verified model/pricing/token bounds, and a reconciled PostgreSQL budget. It reserves cost before sending, warns at $7.50, and stops new spending at $9.00; uncertain charges stay reserved. CI/tests use fake responses. The example price profile deliberately does not approve token bounds, so it cannot enable live requests. See the cost-control document for verification and billing limitations.
 
-The user requested persistence/read APIs as Phase 2 and GitHub App ingestion as Phase 3. Remaining foundations, Redis/Celery dispatch, safe static analysis (Phase 3B), mock-assisted review, publishing, and the authenticated dashboard remain separate work. Complete local hardening before cloud work. See the [roadmap](docs/ROADMAP.md) for evidence. Meaningful verified tasks are committed automatically; completed verified phases are pushed under the standing policy in `AGENTS.md`.
+The user requested persistence/read APIs as Phase 2, GitHub ingestion as Phase 3, and the standalone analysis engine plus guarded hosted adapter as Phase 4. Phase 4 brings necessary scanner and cost-control work forward under [ADR 0003](docs/adr/0003-analysis-engine-scope.md). Remaining foundations, broker/fenced job execution, optional Semgrep, publishing, and the authenticated dashboard remain separate work. Complete local hardening before cloud work. Meaningful verified tasks are committed automatically; completed verified phases are pushed under `AGENTS.md`.
 
 Shrike will not run repository code, install repository dependencies, apply automatic fixes, or treat LLM output as trusted instructions. Reviews are advisory and will not gate merges in the MVP.

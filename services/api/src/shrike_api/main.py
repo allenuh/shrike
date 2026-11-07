@@ -86,7 +86,7 @@ def create_app(settings: Settings | None = None, database: Database | None = Non
     def ready() -> dict[str, str]:
         with db.session() as session:
             revision = session.scalar(text("SELECT version_num FROM alembic_version"))
-        if revision != "0002_github":
+        if revision != "0003_analysis":
             raise ApiError(503, "schema_not_ready", "Database schema is not ready")
         return {"status": "ready"}
 

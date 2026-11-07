@@ -1,6 +1,6 @@
 # Local backend development and verification
 
-Scope: the offline synthetic persistence/read-API demo. All seeded data is invented. Optional Phase 3 GitHub ingestion uses a separate integration database and is documented in [github-app-manual.md](github-app-manual.md). There is no real user login, LLM/scanner execution, publishing, or frontend. Leave GitHub modes disabled for this synthetic demo.
+Scope: the offline synthetic persistence/read-API demo. All seeded data is invented. Optional Phase 3 ingestion uses a separate integration database; see [github-app-manual.md](github-app-manual.md). Standalone Phase 4 scanner/mock analysis is in [analysis-local.md](analysis-local.md); it is not run by this API. Real user login, publishing, queue-driven review execution and frontend remain deferred. Leave GitHub modes disabled for this demo.
 
 ## Prerequisites and dependency setup
 
@@ -39,7 +39,7 @@ To verify migration upgrade, metadata agreement, downgrade, and re-upgrade witho
 uv --cache-dir .cache/uv run --locked python scripts/test_backend.py -q tests/integration/test_migrations.py::test_upgrade_downgrade_upgrade_and_metadata_agreement
 ```
 
-The current `downgrade base` drops all seven application tables and their content. Downgrading only to `0001_core` removes ingestion receipts/access metadata while retaining Phase 2 data. Use disposable databases for this verification. Migrations are never automatically applied on API startup.
+The current `downgrade base` drops all eleven application tables and their content, including API spending history. Downgrading to `0002_github` removes analysis reports/accounting while retaining Phase 2/3 data; live use afterward requires explicit spending reconciliation. Downgrading to `0001_core` also removes ingestion receipts/access metadata. Use disposable databases for this verification. Migrations are never automatically applied on API startup.
 
 ## Start the synthetic demo
 
@@ -105,7 +105,7 @@ Expected: one authorized repository, a completed job with three findings and one
 
 Lists accept `limit=1..100` (default 20), `order=asc|desc` (default descending), and an opaque `cursor`. State ordering is alphabetical; severity ordering uses info < low < medium < high < critical. Every sort includes UUID as a tie-breaker. Detail findings use the default severity-descending order and first 20 records; follow their `next_cursor` through the findings route with the same filters/order. Encode the cursor as a query parameter, and keep filters/order/access scope unchanged; changing them returns `422`. Limit may change between pages. Pagination is a live keyset view, not an immutable multi-request snapshot.
 
-Invalid filters, naive/reversed date ranges, malformed cursors, and unknown query parameters return sanitized `422` error envelopes. Errors have `error.code`, `error.message`, and `error.request_id`; the generated ID also appears in `X-Request-ID`. Database errors return sanitized `503`; unexpected errors return `500`. Liveness is process-only; readiness requires database connectivity and revision `0002_github`.
+Invalid filters, naive/reversed date ranges, malformed cursors, and unknown query parameters return sanitized `422` error envelopes. Errors have `error.code`, `error.message`, and `error.request_id`; the generated ID also appears in `X-Request-ID`. Database errors return sanitized `503`; unexpected errors return `500`. Liveness is process-only; readiness requires database connectivity and revision `0003_analysis`.
 
 Structured request logs contain a generated request ID, HTTP method category, status, and duration. They omit URL/query strings, headers, repository paths, findings, raw exceptions, and database parameters. Uvicorn's default access logger is disabled by the factory as well as by the documented command. Do not enable SQL echo, request-body logging, or debug tracebacks for private data.
 

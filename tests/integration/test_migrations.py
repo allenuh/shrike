@@ -17,6 +17,10 @@ TABLES = {
     "review_findings",
     "review_executions",
     "webhook_deliveries",
+    "analysis_reports",
+    "ai_budgets",
+    "ai_price_snapshots",
+    "ai_spend_entries",
 }
 
 
@@ -33,7 +37,7 @@ def test_upgrade_downgrade_upgrade_and_metadata_agreement(database: Database) ->
         config.attributes["connection"] = connection
         command.upgrade(config, "head")
         command.check(config)
-        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "0002_github"
+        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "0003_analysis"
     assert set(inspect(database.engine).get_table_names()) == TABLES | {"alembic_version"}
 
 

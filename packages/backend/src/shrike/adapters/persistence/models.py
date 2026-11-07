@@ -276,3 +276,77 @@ class WebhookDelivery(IdentityMixin, Base):
     processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     lease_token: Mapped[uuid.UUID | None] = mapped_column(Uuid)
     lease_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class AnalysisReport(IdentityMixin, Base):
+    __tablename__ = "analysis_reports"
+    __table_args__ = (
+        UniqueConstraint("repository_id", "digest", name="uq_analysis_repository_digest"),
+        CheckConstraint("digest ~ '^[0-9a-f]{64}$'", name="digest"),
+    )
+    repository_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("repositories.id", ondelete="CASCADE")
+    )
+    digest: Mapped[str] = mapped_column(String(64))
+    access_generation: Mapped[int] = mapped_column(BigInteger)
+    report: Mapped[dict[str, Any]] = mapped_column(JSONB)
+
+
+class AiBudget(Base):
+    __tablename__ = "ai_budgets"
+    __table_args__ = (
+        CheckConstraint("id = 1", name="singleton"),
+        CheckConstraint(
+            "prior_micro >= 0 AND warning_micro >= 0 AND warning_micro < hard_micro "
+            "AND hard_micro <= total_micro AND total_micro <= 10000000 AND max_review_micro > 0 "
+            "AND max_live BETWEEN 1 AND 2",
+            name="limits",
+        ),
+    )
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    prior_micro: Mapped[int] = mapped_column(BigInteger)
+    total_micro: Mapped[int] = mapped_column(BigInteger, default=10000000)
+    warning_micro: Mapped[int] = mapped_column(BigInteger, default=7500000)
+    hard_micro: Mapped[int] = mapped_column(BigInteger, default=9000000)
+    max_review_micro: Mapped[int] = mapped_column(BigInteger, default=20000)
+    max_live: Mapped[int] = mapped_column(Integer, default=1)
+    frozen: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
+class AiPriceSnapshot(Base):
+    __tablename__ = "ai_price_snapshots"
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    profile: Mapped[dict[str, Any]] = mapped_column(JSONB)
+
+
+class AiSpendEntry(Base):
+    __tablename__ = "ai_spend_entries"
+    __table_args__ = (
+        CheckConstraint("state IN ('dispatched','uncertain','settled')", name="state"),
+        CheckConstraint(
+            "reserved_micro > 0 AND settled_micro >= 0 AND input_bound > 0 "
+            "AND output_bound > 0 AND input_tokens >= 0 AND output_tokens >= 0",
+            name="amounts",
+        ),
+        CheckConstraint(
+            "(state = 'settled' AND settled_micro IS NOT NULL AND input_tokens IS NOT NULL "
+            "AND output_tokens IS NOT NULL) OR (state <> 'settled' AND settled_micro IS NULL)",
+            name="settlement",
+        ),
+    )
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    review_key: Mapped[str] = mapped_column(String(64), index=True)
+    evaluation_session: Mapped[str | None] = mapped_column(String(36))
+    evaluation_limit: Mapped[int | None] = mapped_column(Integer)
+    budget_id: Mapped[int] = mapped_column(
+        ForeignKey("ai_budgets.id", ondelete="RESTRICT"), default=1
+    )
+    price_id: Mapped[str] = mapped_column(ForeignKey("ai_price_snapshots.id", ondelete="RESTRICT"))
+    reserved_micro: Mapped[int] = mapped_column(BigInteger)
+    settled_micro: Mapped[int | None] = mapped_column(BigInteger)
+    input_bound: Mapped[int] = mapped_column(Integer)
+    output_bound: Mapped[int] = mapped_column(Integer)
+    input_tokens: Mapped[int | None] = mapped_column(Integer)
+    output_tokens: Mapped[int | None] = mapped_column(Integer)
+    state: Mapped[str] = mapped_column(String(16), default="dispatched")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

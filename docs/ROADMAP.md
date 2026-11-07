@@ -13,17 +13,19 @@ Use `not started`, `in progress`, `blocked`, or `verified`. A phase is `verified
 | 2 | Persistence and core backend read APIs | Verified: 124 tests, migrations/constraints/API isolation, lint/types, and loopback HTTP smoke passed |
 | 2B | Full Redis/Celery dispatch and recovery | Incomplete: Phase 3 supplies durable inbox ingestion; broker dispatch remains deferred |
 | 3 | Secure GitHub App integration and PR ingestion | Verified: 185 tests, migrations/security/CLI checks, lint/types, configuration and documentation validation passed |
-| 3B | Safe immutable snapshots and static analysis | Not started; analyzer execution deferred |
-| 4 | Mock LLM, validated findings, persisted results | Not started |
+| 3B | Safe immutable snapshots and static analysis | Partly absorbed into Phase 4: restricted Ruff/snapshot parser; queue integration and Semgrep remain deferred |
+| 4 | Standalone AI-assisted analysis, guarded provider, reports and cost ledger | Verified to offline/mocked scope: 267 tests, isolated Ruff, migrations, budget/cache/security checks, lint/types and evaluation passed |
 | 5 | GitHub publication and recovery | Not started |
 | 6 | Authenticated dashboard and metrics | Not started |
 | 7 | Local MVP hardening and portfolio evidence | Not started |
-| 8 | Optional hosted LLM adapter and evaluation | Not started; separate scope |
+| 8 | Live model evaluation and operational accounting hardening | Separate follow-up; guarded adapter/ledger brought forward into Phase 4 |
 | 9 | AWS ECS, Terraform, OpenTelemetry | Not started; deferred |
 
 Phase 2 uses minimum backend prerequisites from Phase 1; Phase 3 adds an independent ingestion runtime with a PostgreSQL inbox. Remaining foundations and broker dispatch are still required before the complete review workflow; then 3B -> 4 -> 5 -> 6 -> 7. Scanner isolation belongs to Phase 3B. Phases 8/9 require a verified local MVP and can be requested independently; cloud does not require a paid model. Phase 0/2 verification records describe their historical snapshots.
 
 ## Project identity and AI budget update
+
+This section records the earlier documentation-only planning update. ADR 0003 and the Phase 4 implementation below subsequently bring its provider/accounting gates forward; historical validation counts are not current source counts.
 
 Shrike is the canonical name and `https://github.com/allenuh/shrike.git` is the canonical repository. The 2026-11-06 naming audit found the existing application/configuration already uses Shrike; no package, service, schema, or data rename is needed. Planned portfolio deliverables and future services must use Shrike.
 
@@ -152,19 +154,30 @@ Acceptance criteria:
 
 ## Phase 4: mock-assisted review and result persistence
 
-Implement the LLM port, deterministic mock, bounded context construction, strict response schemas, normalized findings, deduplication, provenance, and durable coverage/results. Define provider-independent request/limits/result/optional-usage contracts and composition-root model selection. Do not add a hosted provider or real requests yet. Cost controls are specified in [AI_COST_CONTROLS.md](AI_COST_CONTROLS.md).
+The user's expanded Phase 4 request supersedes the original mock-only scope under [ADR 0003](adr/0003-analysis-engine-scope.md). Implement a queue/HTTP-independent snapshot engine, strict diff/file/context selection, required isolated Ruff (optional Semgrep deferred), deterministic mock and guarded OpenAI adapter, versioned prompts, normalized validated findings, reports/cache, persistent budget reservations, dry-run and evaluation commands. No real API calls, publishing, dashboard, queue wiring, or cloud work is authorized. Fenced job-state integration remains Phase 2B work; report persistence is verified independently.
 
 Acceptance criteria:
 
-- Repeated fixtures produce identical mock results and recorded policy/tool/prompt/model versions. No network or API key is needed by the mock.
-- Mock is the default and exclusive AI implementation for ordinary development/CI/tests, including ambient-key and attempted-live-configuration rejection tests. Model/provider configuration does not change review business logic; unknown providers fail safely.
-- Enforce configurable full-input/output token, selected-diff/context-byte, review-concurrency, and per-repository limits. Test boundaries and deterministic coverage disclosure with fake token counters; estimated/mock usage never claims to be actual billed usage.
-- Reject malformed JSON/schema, unknown severity, invalid path/line, oversized response, dangerous Markdown/links, and embedded tool instructions. No candidate can change a publication target or invoke a tool.
-- Optional model timeout/invalid response yields labeled static-only results. Required scanner failure does not yield a normal review.
-- Equivalent issues deduplicate with retained provenance; non-equivalent findings remain distinct. Enforce finding/comment caps and deterministic ordering.
-- Persist run/attempt state and findings transactionally under a fence. Replayed jobs do not duplicate rows.
-- Maintain at least ten seeded actionable and ten clean/unsupported synthetic cases, with expected static hits and mock behavior documented separately.
-- Capture logs during adversarial tests; synthetic secret/source/prompt sentinels are absent. Raw prompts/responses/diffs are not persisted.
+- Parse bounded unified diffs and verify actual head-file line evidence. Reject incomplete/duplicate/unsafe/mismatched input; disclose unsupported/deleted/oversized/excluded files. Changed Python content is parsed as data and never imported/executed.
+- Run digest-pinned Ruff in a non-root read-only networkless container without mounts, repository configs, inline policy suppression, credentials, Docker socket, or privileged execution. Bound CPU/memory/process/time/output and clean exact task-owned containers. Probe isolation and force scanner timeout; failure is never a clean review. Document host-operated runner limits before future worker integration.
+- Keep `AI_PROVIDER=mock` as default, legacy alias lower priority, and all ordinary development/CI/tests offline. Unknown providers fail safely. Real adapter contracts use fake HTTP transports only and one structured model request, no tools, no automatic retries/fallback.
+- Bound full serialized input/output token estimates, relevant changed-code windows, total context/diff/files/lines, and concurrency. Version prompts/model/analyzer/schema/policy. No supplied text can select tools or change application policy.
+- Independently validate Pydantic output, real selected paths/changed lines/exact evidence, severity/confidence, message size/text, and supported security evidence. Reject invented or unsupported claims. Deduplicate known rule/path/line identities with retained provenance, deterministic ordering and capped findings. Optional model failures yield disclosed static-only reports.
+- Report findings, summaries, coverage, model/prompt/analyzer metadata, content hash, latency, estimated tokens/cost, nullable actual usage/calculated cost, and cache hits. Authorize every cache access; include repository/installation/SHAs/content/model/prompt/policy in hash and check current access generation. Report persistence is transactional and replay-safe; raw prompts/diffs/model responses are not stored.
+- Persist a shared reconciled spending ledger with integer micro-USD, $7.50 warning/$9.00 hard stop, per-review cap, global live slots and unique dispatch identities. Reserve before sending, keep uncertain charges/slots across restart, record available usage even for invalid findings, freeze on overruns, and prevent duplicate dispatch/settlement or retention resets. Test threshold races, budget denial with zero transport calls, migration up/down/up and prior-data preservation.
+- Verify current official model/pricing docs and store a dated expiring example profile without implicitly enabling real calls. Missing/stale pricing, missing explicit bounded token-policy approval, missing credentials/opt-ins/access, unavailable ledger, and insufficient allowance fail safely. Dry-run sends no request or monetary reservation. Token upper bounds are disclosed as estimates, not exact tokenizer counts.
+- Provide ten known-bug and ten clean synthetic cases, a runnable mock evaluation command, optional explicitly capped/session-bound live evaluation commands, and log/error privacy tests. No real live evaluation is required or claimed; mock results test orchestration only.
+
+Verification record (2026-11-06 client date, Windows/PowerShell, Python 3.12.6, uv 0.13.7; UTC pricing verification falls on 2026-11-07):
+
+- `uv --cache-dir .cache/uv run --locked --offline python scripts/test_backend.py -q --cov=shrike --cov=shrike_api --cov=shrike_worker --cov-report=term-missing`: **267 passed in 32.24 seconds, 91% statement coverage** after the final partial-usage accounting refinement. Includes all prior API/GitHub tests, real PostgreSQL upgrade/down/upgrade and Alembic metadata agreement, Phase 2/3 data preservation, scoped cache/revocation and retention independence, pricing/opt-in/credential/usage failures, parallel budget reservations and hard-stop equality, persistent uncertainty/slots/evaluation caps, duplicate settlement/dispatch, partial reported usage, overrun freeze, unavailable ledger, mocked Responses HTTP/timeout/rate-limit behavior, scanner policy/noqa/timeout, CLI privacy/dry-run, and malformed diff/model evidence checks.
+- `uv --cache-dir .cache/uv run --locked --offline pytest tests/unit -q -p no:cacheprovider --basetemp .cache/phase4-unit-final-04`: **132 passed in 1.30 seconds**, without Docker. Earlier evaluation expected F823 for one unbound-name fixture; direct Ruff 0.17.4 verification established F821 and the fixture was corrected. One new outage test initially omitted budget initialization and exercised the unreconciled-budget guard instead; its setup was corrected before the final passing suite. Initial lint/format issues were corrected.
+- `uv --cache-dir .cache/uv run --locked --offline ruff check .`: passed; `ruff format --check .`: **87 files already formatted**; strict `mypy`: **75 files passed**; `uv --cache-dir .cache/uv lock --check --offline`: **49 locked packages**. No dependency changes were required. Domain/application import checks prohibit HTTP/queue/SQL/provider-adapter dependencies.
+- `uv --cache-dir .cache/uv run --locked --offline python -m shrike.review_cli evaluate`: **20 cases, 10 hits, 0 misses, 0 false-positive cases; 9 static hits and 1 deterministic mock hit**. Actual digest-pinned Ruff ran; no provider request was made. A synthetic snapshot produced one valid mock finding at changed line 1. Mock dry-run reported zero model cost; hosted dry-run, without key/database/live opt-in, estimated **6,345 input-token upper bound and $0.001635 reserved-cost ceiling** from the dated profile without sending a request or reserving money. The explicit ignored synthetic report artifact was inspected.
+- Restricted Ruff 0.17.4 version/execution and trusted BusyBox isolation probe passed: UID 65534, no host mounts/secrets paths, read-only filesystem, blocked network, 128 MiB memory and 32-process cgroup limits. CPU/output/time bounds are set by the runner; forced scanner timeout/cleanup passed. Only trusted digest-pinned images were downloaded; no repository dependencies/configs/hooks/code were executed. Host Docker access is not a deployed worker architecture.
+- Documentation/source hygiene passed for **107 tracked/new files, 12 Markdown documents, 46 resolving local links, and 58 unique placeholder settings**; JSON fixtures/profile parse, Ruff image pin agreement, preserved original AGENTS instructions, no stale project names/private-key blocks, safe ignore rules, and clean whitespace/conflict-marker checks. `docker compose --env-file .env.example config --quiet` passed with a child-process-only generated password. `git -c core.excludesFile= diff --check` passed with only LF/CRLF notices. The existing `.env` was never read or edited. Final Docker inventory contained no task-owned test/scanner/probe containers.
+
+Remaining manual/deferred steps: [analysis-local.md](runbooks/analysis-local.md) documents offline commands and separately opted-in live setup/evaluation. No real OpenAI request, real model quality/encoding compatibility, billing reconciliation, account balance, or invoice ceiling is verified. The shipped price profile leaves bounded-token approval false. Semgrep, deployed runner/queue leases and 180-second queued attempt deadlines, billing recovery/audit workflows, retention automation, publishing, dashboard, and cloud remain deferred. The feature commit/push are authorized after final staged review; Git history and the task report record their actual results.
 
 ## Phase 5: GitHub REST adapter and publication
 
@@ -209,7 +222,7 @@ Acceptance criteria:
 
 ## Phase 8: optional hosted LLM provider
 
-Separate requested follow-up after Phase 7. Implement OpenAI behind the Phase 4 provider port, model selection through environment configuration, and the complete [AI budget contract](AI_COST_CONTROLS.md) before enabling real requests. The documented low-cost development candidate is `gpt-6-luna`, checked against official docs on 2026-11-06; reverify then-current support/pricing and account availability at implementation. No automatic higher-cost fallback. Require explicit live and private-code egress opt-ins and document provider data handling. Do not add tools or autonomous fixes.
+Separate requested follow-up after Phase 7 for real model quality evaluation and operational billing reconciliation/audit/restore workflows. Phase 4 now implements the guarded OpenAI adapter, model configuration, spending gate and capped evaluation command under ADR 0003. The original gates below remain the target for mature hosted operation; mocked contracts are not evidence of real account/model compatibility. Reverify current `gpt-6-luna` support/pricing and all egress/billing assumptions before any separately authorized live batch. No tools or autonomous fixes.
 
 Acceptance criteria (all automated checks use fake model transports/responses and disposable PostgreSQL):
 
@@ -222,7 +235,7 @@ Acceptance criteria (all automated checks use fake model transports/responses an
 - Add an operator-only live evaluation command with separate explicit opt-in, mandatory finite request cap (default 0), persistent session/counter across restart, synthetic/public corpus, and the same global/per-review budget. Count each dispatch attempt including retries; never run it in CI. A future live batch requires explicit task authorization and reports observed quality/usage honestly; mock results prove only orchestration.
 - Capture synthetic secret/source sentinels to prove logs/errors contain no keys, prompts, source, sensitive payloads, or raw provider bodies. Provide manual pricing/usage reconciliation, budget-warning, uncertain-charge, backup/restore, and opt-in setup steps. Document external-account billing limitations and do not claim an invoice ceiling or account balance.
 
-Phase 8 remains **not started**. No provider integration, cost ledger, cost enforcement, or live evaluation has been implemented or performed by the naming/budget documentation update.
+Phase 8 remains a **separate future operational follow-up**. The Phase 4 adapter/ledger/evaluation command does not establish model quality, exact tokenizer compatibility, automatic billing reconciliation, stale-backup detection, an invoice ceiling, or live production readiness. No real OpenAI call has been performed.
 
 ## Phase 9: cloud and telemetry
 
@@ -238,4 +251,4 @@ Acceptance criteria for a future authorized cloud phase:
 
 ## Current manual steps and remaining work
 
-Phase 2 persistence/read APIs and Phase 3 metadata ingestion are verified to the recorded mocked/local scope. Follow the backend runbook to start the local demo; no persistent stack or live App setup is claimed here. Remaining Phase 1 foundations, Redis/Celery dispatch, scanners, mock/hosted AI, the cost ledger, publishing, OAuth/dashboard, retention automation, and cloud are future work. GitHub account/tunnel and any eventual live evaluation remain separate manual opt-ins. Documentation of cost controls does not verify their enforcement or the remaining API balance.
+Phase 2 persistence/read APIs and Phase 3 metadata ingestion are verified to the recorded mocked/local scope. Phase 4 supplies standalone snapshot analysis, mock/guarded AI, scoped report caching and cost reservations. Follow the backend/analysis runbooks for local commands; no persistent stack or live App/model setup is claimed here. Remaining foundations, Redis/Celery/fenced review execution, Semgrep, publishing, OAuth/dashboard, automated accounting reconciliation/retention, and cloud remain deferred. GitHub account/tunnel and live evaluation require separate manual opt-ins. Mocked budget verification does not establish the remaining API balance or an account invoice ceiling.

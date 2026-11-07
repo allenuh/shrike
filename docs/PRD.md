@@ -2,7 +2,7 @@
 
 Status: product requirements, planning baseline dated 2026-11-06. Phase 2 implements persistence/read APIs; Phase 3 implements secure GitHub App ingestion, verified with mocks. Real account setup remains manual, and the complete analysis/publishing/dashboard workflow remains proposed. [ROADMAP.md](ROADMAP.md) records evidence and deferred work.
 
-The project name is Shrike; its canonical repository is `https://github.com/allenuh/shrike.git`. The approximate total OpenAI API development budget is $10 USD. [AI_COST_CONTROLS.md](AI_COST_CONTROLS.md) defines the mandatory planned safeguards; no AI runtime or ledger is implemented yet.
+The project name is Shrike; its canonical repository is `https://github.com/allenuh/shrike.git`. The approximate total OpenAI API development budget is $10 USD. Phase 4 implements standalone snapshot analysis, a deterministic mock, a guarded hosted adapter, scoped caching, and persistent budget reservations under [ADR 0003](adr/0003-analysis-engine-scope.md). [AI_COST_CONTROLS.md](AI_COST_CONTROLS.md) documents enforcement and remaining live-verification limitations. No real API call has been performed.
 
 ## Problem and outcome
 
@@ -34,8 +34,8 @@ Supported events beyond PR actions are `ping`, `installation`, and `installation
 - A GitHub.com App installed on selected repositories, including private repositories and same-repository PRs. Phase 3 excludes all cross-repository/deleted-head forks; support requires an explicitly approved handling design. GitHub Enterprise Server is deferred.
 - Python-only changed-file analysis. Non-Python, binary, generated, vendor, symlink, submodule, oversized, deleted, and unavailable files are counted as skipped with reasons.
 - Current PR base/head revision snapshots; historical results remain until retention expires. Reviews are advisory: no required checks, auto-approval, or merge blocking.
-- Ruff and a small checked-in Semgrep rule set. Repository configs, custom rules, plugins, hooks, dependency installation, builds, tests, and import execution are excluded.
-- A mock LLM and stable provider interface. A hosted-provider adapter requires a separately requested follow-up, explicit private-code egress configuration, and budget controls.
+- Phase 4 requires isolated Ruff; Semgrep and its small checked-in rule set are optional follow-up under the latest scope. Repository configs, custom rules, plugins, hooks, dependency installation, builds, tests, and import execution are excluded.
+- A deterministic mock and stable provider interface, plus the explicitly requested Phase 4 guarded OpenAI adapter. Live operation requires separate opt-in, verified pricing/token bounds, reconciled spending, and private-code egress consent. CI/tests remain offline.
 - One summary plus at most ten inline comments in one GitHub review. Findings on unchanged lines remain internal or are excluded with a reason; no invented line mappings.
 - Read-only dashboard: repository list, paginated history, run/attempt details, finding filters, severity counts, success/failure rates, queue wait, and review duration. No manual rerun control.
 - English output, one deployment, one fixed analysis policy, no billing or organization settings UI.

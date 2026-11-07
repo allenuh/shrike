@@ -1,0 +1,9 @@
+{
+  "installation_id": 710001,
+  "repository_id": 810001,
+  "base_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "head_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "diff": "diff --git a/demo.py b/demo.py\n--- a/demo.py\n+++ b/demo.py\n@@ -0,0 +1 @@\n+value = 10 / 0\n",
+  "files": [{"path": "demo.py", "content": "value = 10 / 0\n", "kind": "file"}],
+  "private": true
+}

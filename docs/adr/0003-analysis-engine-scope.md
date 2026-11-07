@@ -1,0 +1,13 @@
+# ADR 0003: standalone analysis engine and guarded hosted adapter
+
+Date: 2026-11-06. Status: accepted for the user-requested Phase 4 scope.
+
+The user now requests diff selection, Ruff, a mock and one real provider adapter, reports, caching, evaluation, and spending enforcement in Phase 4. This supersedes the earlier mock-only Phase 4 gate and brings the necessary parts of Phases 3B/8 forward. It does not authorize a real API call, publication, dashboard, broker integration, or cloud provisioning.
+
+Build a synchronous engine accepting an immutable snapshot through typed ports, independent of FastAPI/Celery/GitHub transport. Use strict Pydantic schemas and verify all finding evidence against selected changed lines. Reports disclose omitted coverage and optional AI failure. Ruff is required; Semgrep remains optional and unimplemented. A deterministic mock tests orchestration, not real review intelligence.
+
+For this standalone operator CLI, a trusted host process orchestrates a digest-pinned Ruff Linux container with network disabled, read-only root, no host mounts, non-root user, dropped capabilities, resource limits, bounded stdin/stdout, and exact cleanup. Repository code/configs are never executed or installed. This deliberately replaces the unproven in-worker bubblewrap candidate for this phase. Do not mount a Docker socket into API/worker containers; future queue integration must select a compatible restricted runner before using this engine there. Docker daemon access remains a trusted operator capability, not available to analyzed code. Container isolation does not protect against host/daemon compromise or kernel vulnerabilities.
+
+Implement the OpenAI adapter against fixed HTTPS Responses endpoints and strict structured outputs, with no retries/tools/fallback. An application use case reserves a conservative verified price/token bound in PostgreSQL before dispatch. Unknown bounds, stale pricing, missing opt-in/credentials, unreconciled spending, unavailable ledger, and exhausted allowance block dispatch. Mock tests inject transport responses; no live provider calls are part of implementation. Dry-run never sends a request or reserves money.
+
+Persist repository-scoped reports/cache and content-free cumulative spending independently. New migrations preserve Phase 2/3 data; dropping the accounting migration is destructive and must be restricted to disposable databases or explicit reconciled recovery. Budget records survive report deletion. Current job scheduling/execution state is not driven by the standalone CLI; attaching fenced job leases remains broker-integration work. Document which older phase criteria remain deferred rather than claiming the entire future workflow is complete.

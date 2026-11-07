@@ -1,0 +1,11 @@
+{
+  "model": "gpt-6-luna",
+  "source": "https://developers.openai.com/api/docs/pricing",
+  "verified_at": "2026-11-07T03:20:00Z",
+  "expires_at": "2026-11-08T03:20:00Z",
+  "input_usd_per_million": "0.10",
+  "output_usd_per_million": "0.50",
+  "tier": "standard",
+  "byte_token_bound_approved": false,
+  "framing_token_bound": 4096
+}
