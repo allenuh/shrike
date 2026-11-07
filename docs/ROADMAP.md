@@ -23,6 +23,18 @@ Use `not started`, `in progress`, `blocked`, or `verified`. A phase is `verified
 
 Phase 2 uses minimum backend prerequisites from Phase 1; Phase 3 adds an independent ingestion runtime with a PostgreSQL inbox. Remaining foundations and broker dispatch are still required before the complete review workflow; then 3B -> 4 -> 5 -> 6 -> 7. Scanner isolation belongs to Phase 3B. Phases 8/9 require a verified local MVP and can be requested independently; cloud does not require a paid model. Phase 0/2 verification records describe their historical snapshots.
 
+## Project identity and AI budget update
+
+Shrike is the canonical name and `https://github.com/allenuh/shrike.git` is the canonical repository. The 2026-11-06 naming audit found the existing application/configuration already uses Shrike; no package, service, schema, or data rename is needed. Planned portfolio deliverables and future services must use Shrike.
+
+The approximate total OpenAI API development budget is $10 USD, with cumulative warning at $7.50 and hard stop at $9.00. [AI_COST_CONTROLS.md](AI_COST_CONTROLS.md) is the planned enforcement contract. Phase 4 supplies a deterministic mock and provider contracts; Phase 8 supplies the verified pricing, persistent ledger, atomic reservation gate, and opt-in hosted/evaluation adapters. All ordinary development, CI/CD, unit/integration tests, and automated evaluation remain mock-only. No real AI API call or cloud action is authorized by this update. Existing phase order/status remains unchanged; the new controls are future acceptance gates, not completed features.
+
+Validation record for this documentation/configuration task (2026-11-06, Windows/PowerShell):
+
+- An inline Python standard-library validator run through `.venv/Scripts/python.exe -` passed: all 79 tracked/new project files have no stale project names or private-key blocks; ten Markdown documents have balanced fences and 34 resolving local links; all 60 example settings are unique placeholders with consistent mock/limit/budget values. The validator also checked final newlines, whitespace, conflict markers, canonical origin, secret/cache ignore rules, the exact seven-file change scope, and preservation of every pre-existing `AGENTS.md` instruction. The existing `.env` was not read or edited.
+- `docker compose --env-file .env.example config --quiet` passed with a generated password supplied only to the child process. No services, tunnel, model requests, or cloud resources were started. Official model/pricing documentation was read; no authenticated OpenAI API call was made and no token rates were added as runtime defaults.
+- `git -c core.excludesFile= diff --check` passed; Git emitted only LF/CRLF conversion notices. Application lint/type/test/migration checks were not rerun because no source, dependency, schema, or application behavior changed. Existing Phase 2/3 test records remain historical evidence; Phases 4/8 and all cost-control enforcement remain unimplemented.
+
 ## Phase 0: inspect and plan
 
 Deliver exactly the requested planning/configuration files, with no application scaffolding or external API calls.
@@ -54,6 +66,7 @@ Acceptance criteria:
 - A fresh checkout starts using documented Compose commands; web/API health respond; database and broker remain on private networks; required migration/schema readiness is checked.
 - Migrate an empty ephemeral PostgreSQL database to head; verify schema state. Document migration rollback/recovery policy, including any deliberately irreversible future migrations.
 - Mock mode starts without GitHub/provider credentials; required placeholders fail startup with safe messages. No credentials appear in frontend bundles or config logs.
+- Keep AI configuration mock-only in development/CI profiles; missing keys never trigger credential discovery or paid fallback. Label future example settings until implemented.
 - CI runs Python lint/format/type checks, meaningful foundation tests, TypeScript/lint/build checks, and Compose configuration validation using synthetic local configuration.
 - Record exact setup/check commands, tool versions, service health, and remaining manual prerequisites. Do not claim a live GitHub integration.
 
@@ -139,11 +152,13 @@ Acceptance criteria:
 
 ## Phase 4: mock-assisted review and result persistence
 
-Implement the LLM port, deterministic mock, bounded context construction, strict response schemas, normalized findings, deduplication, provenance, and durable coverage/results. Do not add a hosted provider yet.
+Implement the LLM port, deterministic mock, bounded context construction, strict response schemas, normalized findings, deduplication, provenance, and durable coverage/results. Define provider-independent request/limits/result/optional-usage contracts and composition-root model selection. Do not add a hosted provider or real requests yet. Cost controls are specified in [AI_COST_CONTROLS.md](AI_COST_CONTROLS.md).
 
 Acceptance criteria:
 
 - Repeated fixtures produce identical mock results and recorded policy/tool/prompt/model versions. No network or API key is needed by the mock.
+- Mock is the default and exclusive AI implementation for ordinary development/CI/tests, including ambient-key and attempted-live-configuration rejection tests. Model/provider configuration does not change review business logic; unknown providers fail safely.
+- Enforce configurable full-input/output token, selected-diff/context-byte, review-concurrency, and per-repository limits. Test boundaries and deterministic coverage disclosure with fake token counters; estimated/mock usage never claims to be actual billed usage.
 - Reject malformed JSON/schema, unknown severity, invalid path/line, oversized response, dangerous Markdown/links, and embedded tool instructions. No candidate can change a publication target or invoke a tool.
 - Optional model timeout/invalid response yields labeled static-only results. Required scanner failure does not yield a normal review.
 - Equivalent issues deduplicate with retained provenance; non-equivalent findings remain distinct. Enforce finding/comment caps and deterministic ordering.
@@ -194,7 +209,20 @@ Acceptance criteria:
 
 ## Phase 8: optional hosted LLM provider
 
-Separate follow-up after Phase 7. Choose one provider, use the existing interface, require explicit private-code egress opt-in, and document data retention/processing terms. Enforce model allowlists, per-run/day token and monetary budgets, timeouts, redaction, and a disabled-by-default configuration. Evaluate against a synthetic/public corpus with recorded actionable/false-positive results and actual usage; do not claim quality based on mock tests. Local tests must remain offline and free. Do not add agent tools or autonomous fixes.
+Separate requested follow-up after Phase 7. Implement OpenAI behind the Phase 4 provider port, model selection through environment configuration, and the complete [AI budget contract](AI_COST_CONTROLS.md) before enabling real requests. The documented low-cost development candidate is `gpt-6-luna`, checked against official docs on 2026-11-06; reverify then-current support/pricing and account availability at implementation. No automatic higher-cost fallback. Require explicit live and private-code egress opt-ins and document provider data handling. Do not add tools or autonomous fixes.
+
+Acceptance criteria (all automated checks use fake model transports/responses and disposable PostgreSQL):
+
+- Live mode defaults off, mock mode never reads/requires a key or calls a provider, and CI/test processes refuse live mode. A key/model name alone cannot enable paid dispatch. All ordinary development and automated evaluations remain mock-only.
+- Implement and test provider/token-counter/pricing/ledger ports without model-specific business logic. Verify configurable input/output/context/diff/concurrency/timeout and per-review cost limits; enforce one global live call and one paid attempt by default. Disable SDK/HTTP/queue hidden retries; any separately enabled bounded retry requires a fresh reservation and consumes review/evaluation allowances.
+- Import/reconcile known prior/external development spend, then enforce cumulative $7.50 warning and $9.00 hard stop within the approximate $10 total budget. Validate threshold order and prevent implicit resets/top-ups. Test exact threshold equality, over-budget refusal with zero outbound calls, and parallel workers competing for the last allowance.
+- Create versioned official-pricing snapshots with exact model/tier/region/currency, all billable categories, verification/expiry times, and safe complete-request token bounds. Recheck current official prices when implemented/enabled; no guessed rates, assumed cache discounts, or timeless hardcoded prices. Missing/stale prices, unknown token bounds, unavailable ledger, or unsupported charges fail closed.
+- Add ledger migrations and verify upgrade/down/upgrade against disposable PostgreSQL. Use exact monetary arithmetic, unique call/attempt identities, atomic reservation/settlement, durable dispatch intent and global slots, and nullable actual reported usage distinct from estimates. Keep content-free spending records independent of job deletion and retention; test restart, duplicate settlement, restore/reconciliation guards, and purge behavior.
+- Inject crashes before/after dispatch and before settlement, timeouts, missing usage, malformed output with valid usage, and unexpected actual cost overruns. Potentially billed requests retain full uncertain reservations and appropriate live slots; lease expiry cannot refund or replay them. Stop live work on accounting discrepancies. Test bounded explicit retry accounting without a real request.
+- Add an operator-only live evaluation command with separate explicit opt-in, mandatory finite request cap (default 0), persistent session/counter across restart, synthetic/public corpus, and the same global/per-review budget. Count each dispatch attempt including retries; never run it in CI. A future live batch requires explicit task authorization and reports observed quality/usage honestly; mock results prove only orchestration.
+- Capture synthetic secret/source sentinels to prove logs/errors contain no keys, prompts, source, sensitive payloads, or raw provider bodies. Provide manual pricing/usage reconciliation, budget-warning, uncertain-charge, backup/restore, and opt-in setup steps. Document external-account billing limitations and do not claim an invoice ceiling or account balance.
+
+Phase 8 remains **not started**. No provider integration, cost ledger, cost enforcement, or live evaluation has been implemented or performed by the naming/budget documentation update.
 
 ## Phase 9: cloud and telemetry
 
@@ -210,4 +238,4 @@ Acceptance criteria for a future authorized cloud phase:
 
 ## Current manual steps and remaining work
 
-All application phases remain unimplemented. Tool installation/version pinning, Compose startup, migrations, tests, GitHub App registration, OAuth setup, webhook connectivity, provider selection, and cloud configuration are future work. Finding executable tools on the current machine does not verify versions, Docker daemon availability, or a working development stack.
+Phase 2 persistence/read APIs and Phase 3 metadata ingestion are verified to the recorded mocked/local scope. Follow the backend runbook to start the local demo; no persistent stack or live App setup is claimed here. Remaining Phase 1 foundations, Redis/Celery dispatch, scanners, mock/hosted AI, the cost ledger, publishing, OAuth/dashboard, retention automation, and cloud are future work. GitHub account/tunnel and any eventual live evaluation remain separate manual opt-ins. Documentation of cost controls does not verify their enforcement or the remaining API balance.

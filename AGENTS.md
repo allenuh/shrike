@@ -6,6 +6,7 @@ Read `README.md`, `docs/PRD.md`, `docs/ARCHITECTURE.md`, and `docs/ROADMAP.md` b
 
 ## Scope and architecture
 
+- The project name is Shrike. The canonical repository is `https://github.com/allenuh/shrike.git`; use Shrike in branding, configuration, service names, and deliverables.
 - Complete only the phase or task explicitly requested by the user. If no implementation phase is requested, do not start one. Do not advance into another phase merely because the current phase is finished.
 - Keep the modular backend plus worker, mandatory stack, local mock provider, and interface boundaries in the architecture document.
 - Preserve existing architectural decisions unless a change is justified by evidence. Record the reason, tradeoffs, affected documents, and migration implications before or with the change. Ask for clarification only when it materially changes the authorized product scope or requires an unresolved user decision.
@@ -29,6 +30,17 @@ Read `README.md`, `docs/PRD.md`, `docs/ARCHITECTURE.md`, and `docs/ROADMAP.md` b
 - Verify webhook HMAC signatures before trusting events. Enforce repository authorization on every dashboard resource request and worker operation that accesses GitHub.
 - Keep local tests offline with a deterministic mock LLM and mock GitHub adapter. Do not make real external API calls or create infrastructure without task authorization.
 - Keep GitHub, AI, persistence, and queue implementations behind their documented interfaces. Never place backend credentials in the web bundle or `NEXT_PUBLIC_*` variables.
+
+## AI spending controls
+
+- The approximate total OpenAI API development budget is **$10 USD**, with initial cumulative warning and hard-stop thresholds of **$7.50** and **$9.00**. Minimize spending; do not interpret available budget as permission to spend. Track known development/evaluation spending outside Shrike before allocating the remaining allowance. Do not claim knowledge of the user's account balance or this coding session's billing.
+- Read [AI cost controls](docs/AI_COST_CONTROLS.md) before implementing any AI behavior. Keep the deterministic mock as the default. Ordinary development, CI/CD, unit tests, integration tests, and automated evaluations must exclusively use mock AI responses without API keys or model network access.
+- Real OpenAI requests require a separately requested hosted-provider task, explicit live opt-in, an allowlisted model configured through environment variables, and private-code egress consent where relevant. Never make live calls to validate a documentation change. Live evaluation also requires a positive, bounded maximum request count; default allowance is zero.
+- Keep provider/tokenizer/pricing/ledger implementations behind ports. Before each paid attempt, enforce input/output/context/diff/concurrency limits and atomically reserve a conservative cost estimate in a cumulative PostgreSQL ledger shared across workers and preserved across restarts. Record reported usage separately from estimates. Missing/stale pricing, unknown token bounds, unavailable ledger, or insufficient budget must fail closed; no unbounded override.
+- Verify current official provider pricing/model support when implementing or enabling the integration. Record the pricing source, model, tier, currency, verification/expiry times, and billable token categories. Never hardcode guessed rates, assume cache discounts, or silently switch to a more expensive model.
+- Disable SDK, HTTP, and queue retries of paid requests by default (one attempt). Any explicitly configured retry must be bounded and independently budgeted. Timeouts, crashes, and missing usage must retain the full reservation until reconciled; worker recovery must not blindly send another paid request.
+- Do not reset the ledger on restart, seed, migration, or review-retention cleanup. Raising thresholds, resetting accounting, or authorizing additional spend requires an explicit user decision. Preserve credentials and private data protections above; never log API keys, private source, prompts, or sensitive payloads.
+- These are mandatory implementation gates, not a claim that the future provider or ledger exists. Update architecture, roadmap, migration/test evidence, and limitations as controls are implemented.
 
 ## Git commit policy
 

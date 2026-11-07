@@ -1,5 +1,7 @@
 # Shrike
 
+Canonical repository: [allenuh/shrike](https://github.com/allenuh/shrike).
+
 Shrike is an AI-assisted GitHub code review platform under development. The planned workflow will validate GitHub App webhooks, queue Python-focused reviews, combine Ruff and Semgrep findings with validated LLM suggestions, and publish feedback to GitHub. A dashboard will show history, findings, and metrics.
 
 **Current status: Phase 3 GitHub App integration and PR ingestion, verified with mocks.** The backend has scoped read APIs, SQLAlchemy/Alembic persistence, raw-byte webhook authentication, a durable inbox, a metadata ingestion worker, and a read-only GitHub App client. Live account setup and a real GitHub smoke test remain manual and unperformed. There is no frontend, review executor, analyzer/LLM integration, publishing, Redis/Celery transport, CI workflow, or cloud deployment yet. Compose provides the development database.
@@ -8,6 +10,7 @@ Shrike is an AI-assisted GitHub code review platform under development. The plan
 
 - [Product requirements](docs/PRD.md): requirements, MVP limits, non-goals, risks, and costs.
 - [Architecture](docs/ARCHITECTURE.md): repository layout, interfaces, lifecycle, schema, decisions, and threat model.
+- [AI cost controls](docs/AI_COST_CONTROLS.md): mock-only development, the approximate $10 API budget, and future paid-request safeguards.
 - [Roadmap](docs/ROADMAP.md): phases, measurable acceptance criteria, and validation status.
 - [Agent instructions](AGENTS.md): rules for future implementation tasks.
 - [Backend setup and manual verification](docs/runbooks/backend-local.md): exact local commands.
@@ -53,6 +56,8 @@ Protected history APIs deny access by default. Development authentication requir
 A real GitHub App and publicly reachable HTTPS webhook URL are needed only when you deliberately configure live integration. Follow the separate manual runbook; no account setup or real App API calls were performed by Codex. Fork PRs and deleted fork heads are excluded. Reinstallation/transfers with existing ownership history are quarantined until a migration design supports them.
 
 ## Implementation order
+
+AI development uses deterministic mocks exclusively. The planned hosted integration requires explicit opt-in, model configuration, conservative per-request cost reservations, and a persistent application-wide ledger that warns at $7.50 and stops new spending at $9.00. These controls and the provider interface are design requirements awaiting Phases 4/8; no live model or spending ledger is implemented. CI/tests remain mock-only. The buffer within the approximate $10 budget is not permission to spend. See the cost-control document for pricing verification and accounting limitations.
 
 The user requested persistence/read APIs as Phase 2 and GitHub App ingestion as Phase 3. Remaining foundations, Redis/Celery dispatch, safe static analysis (Phase 3B), mock-assisted review, publishing, and the authenticated dashboard remain separate work. Complete local hardening before cloud work. See the [roadmap](docs/ROADMAP.md) for evidence. Meaningful verified tasks are committed automatically; completed verified phases are pushed under the standing policy in `AGENTS.md`.
 

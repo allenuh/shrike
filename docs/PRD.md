@@ -2,6 +2,8 @@
 
 Status: product requirements, planning baseline dated 2026-11-06. Phase 2 implements persistence/read APIs; Phase 3 implements secure GitHub App ingestion, verified with mocks. Real account setup remains manual, and the complete analysis/publishing/dashboard workflow remains proposed. [ROADMAP.md](ROADMAP.md) records evidence and deferred work.
 
+The project name is Shrike; its canonical repository is `https://github.com/allenuh/shrike.git`. The approximate total OpenAI API development budget is $10 USD. [AI_COST_CONTROLS.md](AI_COST_CONTROLS.md) defines the mandatory planned safeguards; no AI runtime or ledger is implemented yet.
+
 ## Problem and outcome
 
 Pull request authors need timely, actionable review feedback without surrendering control of their code. Maintainers need a record of what ran, what was skipped, and why a finding appeared. Shrike will demonstrate authenticated GitHub ingestion, durable asynchronous work, static and AI-assisted analysis, validated publication, and an authorized dashboard.
@@ -23,6 +25,7 @@ Primary users are Python repository maintainers and PR authors. The initial oper
 | F9 | Publish a capped, advisory GitHub review for the current revision, disclosing skipped/degraded status. | Stale runs do not post; ambiguous writes enter reconciliation; failed analysis never appears as a clean pass. |
 | F10 | Provide GitHub App user login, authorized history/detail views, findings, and basic metrics. | Unauthenticated requests fail; users without repository access cannot read runs, findings, or aggregates. |
 | F11 | Record safe operational metadata and support retention/purge. | Correlation IDs and timings exist without code/token logging; expired records and revoked credentials are removed. |
+| F12 | Gate optional paid AI behind explicit opt-in, bounded costs, and a persistent application-wide spending ledger. | Mock-only automated tests prove atomic reservations, $7.50 warning/$9.00 hard stop, restart persistence, usage settlement, and fail-closed uncertainty before hosted mode is enabled. |
 
 Supported events beyond PR actions are `ping`, `installation`, and `installation_repositories`. Unknown signed events are acknowledged without scheduling reviews. Lifecycle events reconcile canonical state asynchronously; out-of-order delivery must not restore revoked access.
 
@@ -53,12 +56,15 @@ These are proposed configurable defaults, to be measured during implementation. 
 | Individual file | 200 KiB decoded content; skip the file if exceeded. |
 | Analyzer execution | 30 seconds per analyzer per run; bounded CPU, memory, process count, input, and output. |
 | LLM | 12,000 input tokens, 2,000 output tokens, 30-second request timeout; omit only at file/hunk boundaries and disclose coverage. |
+| AI context | 64 KiB selected diff and 128 KiB complete serialized request, also subject to token/fetched-diff limits; disclose omissions. |
+| Paid AI (Phase 8) | Disabled by default; 1 global live request, 1 attempt per logical call, $0.02 maximum per review. Explicit live evaluation opt-in and finite request cap; default cap 0. |
+| API development budget | Approximately $10 total; cumulative warning $7.50, hard stop $9.00 including reserved/uncertain charges and known prior/external development spend. No restart/daily reset. |
 | Review | 180-second attempt deadline, at most 3 processing attempts, bounded exponential backoff with jitter. |
 | Concurrency | Initially 2 active jobs per worker and 1 per repository; enforce using database claims. |
 | Publication | At most 10 inline comments and 100 stored normalized findings; bounded messages/summary. |
 | Retention | Review content 30 days, webhook receipt metadata 7 days, operational logs 14 days. Keep content-free run/publication identity tombstones for deployment lifetime to prevent replay after content expiry; document any explicit full erasure/reset. Raw webhook bodies, diffs, prompts, and model responses are not persisted. |
 
-The provider adapter owns token accounting; uncertain estimates use conservative bounds. A paid adapter cannot be enabled until token and monetary ceilings are enforceable. The mock does not imply a real model has assessed code quality.
+The provider/token-counter adapters report usage and bound the complete request; application orchestration owns atomic reservations and settlement through a persistent ledger port. Unknown token bounds, stale/missing verified prices, or insufficient allowance block real dispatch. Store estimates separately from nullable reported usage; missing usage and ambiguous failures retain their reservations. Ordinary development, CI/CD, unit tests, and integration tests exclusively use mock AI. A paid adapter cannot be enabled until all ceilings are enforceable. The mock does not imply a real model has assessed code quality.
 
 ## Nonfunctional requirements
 
@@ -94,10 +100,10 @@ Maintain a synthetic corpus with at least ten seeded actionable issues and ten c
 | Private-code egress | Mock default; hosted adapter disabled until enabled explicitly with a documented provider data policy and operator opt-in. |
 | Dashboard authorization | GitHub App user authorization, short access-cache lifetime, revocation handling, cross-repository tests. Defer custom organizations/roles. |
 | Local resources | PostgreSQL, Redis, Node, and analysis containers consume memory/CPU. Start with 4 CPUs and 8 GiB available to Docker as an estimate, then measure. No paid service is required. |
-| Hosted model charges | Zero in mock mode. Future cost equals input/output token usage at the selected provider rates, bounded by per-run/day caps; no assumed market prices. |
+| Hosted model charges | Zero in mock mode. Phase 8 uses current verified official pricing, persistent cumulative reservations, $7.50 warning/$9.00 stop within the approximate $10 development budget, and bounded opt-in evaluation. External/account charges require reconciliation; local estimates do not guarantee invoice totals. |
 | Cloud expense | ECS, database, Redis, logs, backups, networking/NAT, and secrets incur recurring costs. Estimate current regional prices only when cloud work is authorized. |
 | Scope creep | Extra languages, reruns, cloud, and paid adapters require separate phases. Defer features that do not improve the end-to-end MVP. |
 
 ## Decisions requiring implementation evidence
 
-Backend versions/tooling are pinned; full runtime/CI and real user authentication decisions remain outstanding. Phase 3B must prove Linux scanner isolation before analyzer execution. A hosted LLM vendor, cloud region/topology, spending ceiling, and production retention policy require separate decisions. These are not prerequisites for the current metadata-only GitHub integration.
+Backend versions/tooling are pinned; full runtime/CI and real user authentication decisions remain outstanding. Phase 3B must prove Linux scanner isolation before analyzer execution. OpenAI is the initial optional hosted target, with an approximate $10 development budget and the thresholds above; exact model/pricing must be reverified when that separately requested phase is implemented. Cloud region/topology and production retention policy require separate decisions. These are not prerequisites for the current metadata-only GitHub integration.
