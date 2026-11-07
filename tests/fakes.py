@@ -10,6 +10,8 @@ from shrike.domain.github import (
     GitHubPullRequest,
     GitHubRepository,
 )
+from shrike.domain.publication import PublicationPlan, PublishedComment, PublishedReview
+from shrike.domain.review import Coverage, Finding, Report
 
 
 def github_fixture(name: str) -> dict[str, Any]:
@@ -107,3 +109,83 @@ class ReviewGitHub(FakeGitHub):
         if self.on_blob:
             self.on_blob()
         return self.source
+
+
+def publication_report() -> Report:
+    return Report(
+        analysis_hash="f" * 64,
+        status="completed",
+        summary="Synthetic report",
+        findings=(
+            Finding(
+                category="correctness",
+                severity="high",
+                confidence=0.99,
+                path="demo.py",
+                line=1,
+                problem="Division by zero always fails",
+                suggestion="Reject the invalid denominator before computing",
+                evidence="value = 10 / 0",
+                rule="division-by-zero",
+                analyzers=("mock",),
+                fingerprint="d" * 64,
+            ),
+        ),
+        coverage=Coverage(selected_files=1, skipped={}, changed_lines=1),
+        provider="mock",
+        model="mock-v1",
+        prompt_version="test-v1",
+        analyzer_version="fake-v1",
+        input_token_estimate=100,
+        estimated_cost_usd=None,
+        latency_ms=1,
+    )
+
+
+class PublishingGitHub(ReviewGitHub):
+    def __init__(self) -> None:
+        super().__init__()
+        self.published: list[PublishedReview] = []
+        self.comments: tuple[PublishedComment, ...] = ()
+        self.post_error: GitHubError | None = None
+        self.comments_error: GitHubError | None = None
+        self.after_write: Callable[[], None] | None = None
+        self.before_reviews: Callable[[], None] | None = None
+        self.plans: list[PublicationPlan] = []
+
+    def reviews(
+        self, installation_id: int, repository: GitHubRepository, number: int
+    ) -> tuple[PublishedReview, ...]:
+        self._call("reviews")
+        if self.before_reviews:
+            self.before_reviews()
+        return tuple(self.published)
+
+    def create_review(
+        self,
+        installation_id: int,
+        repository: GitHubRepository,
+        number: int,
+        head_sha: str,
+        plan: PublicationPlan,
+    ) -> PublishedReview:
+        self._call("create_review")
+        self.plans.append(plan)
+        if self.post_error:
+            raise self.post_error
+        review = PublishedReview(123, head_sha, plan.body, True, "COMMENTED")
+        self.published.append(review)
+        self.comments = tuple(
+            PublishedComment(200 + i, c.body, True) for i, c in enumerate(plan.comments)
+        )
+        if self.after_write:
+            self.after_write()
+        return review
+
+    def review_comments(
+        self, installation_id: int, repository: GitHubRepository, number: int, review_id: int
+    ) -> tuple[PublishedComment, ...]:
+        self._call("review_comments")
+        if self.comments_error:
+            raise self.comments_error
+        return self.comments

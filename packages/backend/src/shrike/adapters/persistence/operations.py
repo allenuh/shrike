@@ -79,8 +79,8 @@ class DevJobOperations:
         self.inspect(job_id)
         store = SqlExecutionStore(self.database)
         with self.database.session() as session, session.begin():
-            records = store._records(session, job_id)
-            if records is None or not store._current(*records):
+            records = store.records(session, job_id)
+            if records is None or not store.current(*records):
                 raise ReviewError("job_unavailable")
             job = records[3]
             if job.state != JobState.FAILED or job.attempt_count >= 3:

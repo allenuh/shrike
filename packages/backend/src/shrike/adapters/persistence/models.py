@@ -335,6 +335,41 @@ class ProviderWindow(Base):
     next_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
+class ReviewPublication(Base):
+    __tablename__ = "review_publications"
+    __table_args__ = (
+        CheckConstraint(
+            "state IN ('preparing','inflight','published','partial','uncertain',"
+            "'failed','suppressed','stale')",
+            name="state",
+        ),
+        CheckConstraint("attempts BETWEEN 0 AND 3", name="attempts"),
+        CheckConstraint("(lease_token IS NULL) = (lease_expires_at IS NULL)", name="lease"),
+        CheckConstraint("review_id IS NULL OR review_id > 0", name="review_id"),
+        CheckConstraint(
+            "payload_digest IS NULL OR payload_digest ~ '^[a-f0-9]{64}$'", name="payload_digest"
+        ),
+    )
+    job_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("review_jobs.id", ondelete="RESTRICT"), primary_key=True
+    )
+    marker: Mapped[str] = mapped_column(String(200), unique=True)
+    state: Mapped[str] = mapped_column(String(16))
+    attempts: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    summary_only: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    payload: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    payload_digest: Mapped[str | None] = mapped_column(String(64))
+    review_id: Mapped[int | None] = mapped_column(BigInteger)
+    comment_ids: Mapped[list[int]] = mapped_column(JSONB, default=list, server_default="[]")
+    reason: Mapped[str | None] = mapped_column(String(64))
+    lease_token: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    lease_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    available_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class AiBudget(Base):
     __tablename__ = "ai_budgets"
     __table_args__ = (

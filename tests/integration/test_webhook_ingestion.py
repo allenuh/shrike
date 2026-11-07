@@ -269,7 +269,10 @@ def test_rate_limit_schedule_and_eventual_recovery(
     assert process_one(store, github, 12345)
     assert not process_one(store, github, 12345)
     with database.engine.begin() as connection:
-        connection.execute(text("UPDATE webhook_deliveries SET available_at=now()"))
+        # Put the synthetic due time clearly in the past across host/container clocks.
+        connection.execute(
+            text("UPDATE webhook_deliveries SET available_at=now()-interval '1 second'")
+        )
     github.error = None
     assert process_one(store, github, 12345)
     assert count(database, ReviewJob) == 1

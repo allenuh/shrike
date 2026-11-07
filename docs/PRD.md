@@ -2,7 +2,7 @@
 
 Status: product requirements, planning baseline dated 2026-11-06. Phase 2 implements persistence/read APIs; Phase 3 implements secure GitHub App ingestion, verified with mocks. Real account setup remains manual, and the complete analysis/publishing/dashboard workflow remains proposed. [ROADMAP.md](ROADMAP.md) records evidence and deferred work.
 
-The project name is Shrike; its canonical repository is `https://github.com/allenuh/shrike.git`. The approximate total OpenAI API development budget is $10 USD. Phase 4 implements standalone analysis and guarded hosted evaluation; Phase 5 implements durable Redis/Celery execution with mock-only queued AI under [ADR 0004](adr/0004-asynchronous-processing.md). Publishing moves to Phase 5B. [AI_COST_CONTROLS.md](AI_COST_CONTROLS.md) documents enforcement and remaining live-verification limits. All GitHub/AI verification is synthetic/mocked; no real model request has been performed.
+The project name is Shrike; its canonical repository is `https://github.com/allenuh/shrike.git`. The approximate total OpenAI API development budget is $10 USD. Phase 4 implements standalone analysis and guarded hosted evaluation; Phase 5 implements durable Redis/Celery execution with mock-only queued AI under [ADR 0004](adr/0004-asynchronous-processing.md). The subsequent Phase 6 publication request supersedes Phase 5B under [ADR 0005](adr/0005-github-publication.md); the dashboard becomes Phase 6B. Publication is an independent report-only/explicit-opt-in CLI, verified with mocks. [AI_COST_CONTROLS.md](AI_COST_CONTROLS.md) documents enforcement and remaining live-verification limits. All GitHub/AI verification is synthetic/mocked; no real model request has been performed.
 
 ## Problem and outcome
 
@@ -36,7 +36,7 @@ Supported events beyond PR actions are `ping`, `installation`, and `installation
 - Current PR base/head revision snapshots; historical results remain until retention expires. Reviews are advisory: no required checks, auto-approval, or merge blocking.
 - Phase 4 requires isolated Ruff; Semgrep and its small checked-in rule set are optional follow-up under the latest scope. Repository configs, custom rules, plugins, hooks, dependency installation, builds, tests, and import execution are excluded.
 - A deterministic mock and stable provider interface, plus the explicitly requested Phase 4 guarded OpenAI adapter. Live operation requires separate opt-in, verified pricing/token bounds, reconciled spending, and private-code egress consent. CI/tests remain offline.
-- One summary plus at most ten inline comments in one GitHub review. Findings on unchanged lines remain internal or are excluded with a reason; no invented line mappings.
+- One summary plus at most ten inline comments in one GitHub review. Eligible findings whose inline locations cannot be mapped to added diff lines fall back to the summary; no invented line mappings. Phase 6 caps all published findings at ten and filters minor/low-confidence suggestions.
 - Read-only dashboard: repository list, paginated history, run/attempt details, finding filters, severity counts, success/failure rates, queue wait, and review duration. No manual rerun control.
 - English output, one deployment, one fixed analysis policy, no billing or organization settings UI.
 

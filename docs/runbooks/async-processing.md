@@ -1,6 +1,6 @@
 # Asynchronous ingestion and review operations
 
-Scope: Phase 5 host-operated Celery worker and dispatcher, PostgreSQL durability, Redis transport, existing isolated Ruff, and deterministic mock AI. GitHub feedback publishing is not implemented. [ADR 0004](../adr/0004-asynchronous-processing.md) records the phase rebaseline and security boundary. All integration verification uses synthetic GitHub data; no real App operation, model request, or published review was performed.
+Scope: Phase 5 host-operated Celery worker and dispatcher, PostgreSQL durability, Redis transport, existing isolated Ruff, and deterministic mock AI. GitHub feedback publishing is separately implemented in [Phase 6](github-publication.md); workers still never publish. [ADR 0004](../adr/0004-asynchronous-processing.md) records the phase rebaseline and security boundary. All integration verification uses synthetic GitHub data; no real App operation, model request, or published review was performed.
 
 ## Offline end-to-end verification
 

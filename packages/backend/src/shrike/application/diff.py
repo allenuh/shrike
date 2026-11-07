@@ -15,17 +15,13 @@ from shrike.domain.review import (
 HUNK = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@(?: .*)?$")
 
 
-def select_files(
-    request: ReviewInput, limits: ReviewLimits
-) -> tuple[tuple[SelectedFile, ...], Coverage]:
-    if len(request.diff.encode("utf-8")) > limits.max_diff_bytes:
+def changed_diff(
+    diff: str, limits: ReviewLimits
+) -> tuple[dict[str, set[int]], dict[str, dict[int, str]], set[str]]:
+    """Parse a complete diff; additions only are eligible new-side locations."""
+    if len(diff.encode("utf-8")) > limits.max_diff_bytes:
         raise ReviewError("diff_size_limit")
-    if len(request.files) > 1000 or sum(len(f.content.encode()) for f in request.files) > 4194304:
-        raise ReviewError("snapshot_size_limit")
-    sources = {file.path: file for file in request.files}
-    if len(sources) != len(request.files):
-        raise ReviewError("duplicate_source_path")
-    lines = request.diff.splitlines()
+    lines = diff.splitlines()
     changes: dict[str, set[int]] = {}
     expected: dict[str, dict[int, str]] = {}
     unsupported: set[str] = set()
@@ -131,6 +127,20 @@ def select_files(
         raise ReviewError("incomplete_diff")
     if sum(map(len, changes.values())) > limits.max_changed_lines:
         raise ReviewError("changed_line_limit")
+    return changes, expected, unsupported
+
+
+def select_files(
+    request: ReviewInput, limits: ReviewLimits
+) -> tuple[tuple[SelectedFile, ...], Coverage]:
+    if len(request.diff.encode("utf-8")) > limits.max_diff_bytes:
+        raise ReviewError("diff_size_limit")
+    if len(request.files) > 1000 or sum(len(f.content.encode()) for f in request.files) > 4194304:
+        raise ReviewError("snapshot_size_limit")
+    sources = {file.path: file for file in request.files}
+    if len(sources) != len(request.files):
+        raise ReviewError("duplicate_source_path")
+    changes, expected, unsupported = changed_diff(request.diff, limits)
     selected: list[SelectedFile] = []
     skipped: dict[str, int] = {}
     for path in sorted(changes):

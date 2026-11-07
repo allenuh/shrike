@@ -16,13 +16,13 @@ Use `not started`, `in progress`, `blocked`, or `verified`. A phase is `verified
 | 3B | Safe immutable snapshots and static analysis | Partly absorbed into Phase 4: restricted Ruff/snapshot parser; queue integration and Semgrep remain deferred |
 | 4 | Standalone AI-assisted analysis, guarded provider, reports and cost ledger | Verified to offline/mocked scope: 267 tests, isolated Ruff, migrations, budget/cache/security checks, lint/types and evaluation passed |
 | 5 | Asynchronous ingestion/review processing through Redis/Celery | Verified locally: real transport/storage/scanner, mocked GitHub/AI; fenced retries/concurrency/recovery and guarded operations pass |
-| 5B | GitHub publication and recovery | Not started; moved after asynchronous processing by the user's Phase 5 request |
-| 6 | Authenticated dashboard and metrics | Not started |
+| 6 | Independent GitHub advisory publication and recovery (formerly 5B) | Verified locally: 349 tests, 91% coverage, mocked GitHub publication and real PostgreSQL/Redis/Celery/Ruff; evidence below |
+| 6B | Authenticated dashboard and metrics | Not started; deferred by the user's Phase 6 publication request |
 | 7 | Local MVP hardening and portfolio evidence | Not started |
 | 8 | Live model evaluation and operational accounting hardening | Separate follow-up; guarded adapter/ledger brought forward into Phase 4 |
 | 9 | AWS ECS, Terraform, OpenTelemetry | Not started; deferred |
 
-Phase 2 supplies backend prerequisites; Phase 3 adds the inbox; Phase 4 adds standalone analysis; Phase 5 now connects asynchronous processing and moves publication to 5B. Remaining local foundations, optional Semgrep/deployed-runner validation, publication, dashboard and hardening remain separately requested work. Phases 8/9 require a verified local MVP; cloud does not require a paid model. Historical phase records retain their original validation snapshots.
+Phase 2 supplies backend prerequisites; Phase 3 adds the inbox; Phase 4 adds standalone analysis; Phase 5 connects asynchronous processing. The user-requested Phase 6 publication supersedes 5B under [ADR 0005](adr/0005-github-publication.md); dashboard work becomes 6B. Remaining local foundations, optional Semgrep/deployed-runner validation, publication, dashboard and hardening remain separately requested work. Phases 8/9 require a verified local MVP; cloud does not require a paid model. Historical phase records retain their original validation snapshots.
 
 ## Project identity and AI budget update
 
@@ -207,9 +207,9 @@ Final verification record (2026-11-07 client date; Windows/PowerShell, Python 3.
 
 Commands and remaining manual steps: [async-processing.md](runbooks/async-processing.md). Start a persistent database/Redis only deliberately, migrate to `0005_execution`, configure the selected test App separately, then run dispatcher and host worker. Automatic queued AI is mock-only. Native Windows threads are development-only; Linux prefork/process-kill deployment and cloud runner compatibility are unperformed. Automatic orphan-container cleanup/retention, hosted queue spending, publishing (5B), dashboard, CI and cloud remain deferred. Git history/task report record the feature commits and completed-phase push after staged validation.
 
-## Phase 5B: GitHub REST adapter and publication
+## Phase 6: GitHub REST adapter and independent publication (formerly 5B)
 
-Extend the Phase 3 read-only GitHub adapter with advisory reviews and publication reconciliation. Add Pull requests write permission only when this publishing phase is implemented and explicitly configured; retain scoped short-lived credentials and mocked contracts. No write permission or publishing endpoint is present in Phase 3.
+The user requested Phase 6 publication on 2026-11-07; [ADR 0005](adr/0005-github-publication.md) records the naming/scope rebaseline and independent operator execution. Extend the Phase 3 read-only GitHub adapter with advisory reviews and publication reconciliation. Add Pull requests write permission only when this publishing phase is implemented and explicitly configured; retain scoped short-lived credentials and mocked contracts. No write permission or publishing endpoint is present in Phase 3.
 
 Acceptance criteria:
 
@@ -221,7 +221,25 @@ Acceptance criteria:
 - Document GitHub App registration, exact permissions/events, private-key mounting, callback/webhook URLs, secret generation, optional HTTPS tunnel, and removal/revocation cleanup as manual steps.
 - A real smoke test is optional and requires separate authorization and credentials. Record it as unperformed until an actual test App/repository event succeeds; mock contract tests alone do not establish real compatibility.
 
-## Phase 6: authenticated dashboard
+Implementation and verification (2026-11-07 client date):
+
+- Implemented a report-only CLI over completed persisted reports; publishing additionally requires explicit live/enabled settings, paired repository grants and `--publish`. Worker completion never publishes; no hosted model, public mutation API, dashboard or cloud work is added.
+- Added a bounded quality-filtered advisory summary, up to ten new-side inline comments and actionable summary fallback for deleted/context/invalid locations. Only medium-or-higher correctness/security/reliability findings with confidence >= 0.85 are selected. Mock/partial/static-only coverage is disclosed; evidence/source is omitted and untrusted prose is escaped.
+- Added minimal repository-scoped App read/write token scopes and no-retry COMMENT-only writes. Full bounded pagination and authenticated App-bot/marker/SHA checks prevent known duplicate reviews. Durable write intents, separate publication attempts/leases, external IDs and uncertain/partial/stale states preserve failure history independently from analysis.
+- Migration `0006_publication` preserves previous jobs and adds `review_publications`; API readiness requires the new revision. Disposable upgrade/downgrade/upgrade and metadata comparison are included in verification.
+- Initial targeted publication/migration run: **20 passed, 4 failed**; corrected a newly inserted due-time race and stale-outcome precedence. Initial full run: **343 passed, 1 failed**, 91% statement coverage; the pre-existing ingestion test put `available_at` exactly at the container clock's now while polling with the host clock. Its synthetic due time now uses one second in the past. No runtime ingestion retry semantics or counters were changed. Initial formatting/type issues and duplicate test-module naming were corrected before final validation.
+- Final executed checks on Windows, Python 3.12.6 and Docker Desktop Linux engine 29.9.2:
+  - `uv --cache-dir .cache/uv run --locked --offline --no-sync python scripts/test_backend.py -q --cov=shrike --cov=shrike_api --cov=shrike_worker --cov-report=term --tb=short`: **349 passed in 67.03 seconds, 91% statement coverage**. Includes upgrade/downgrade/upgrade/metadata agreement, real signed-event/Redis/Celery/isolated-Ruff/mock-AI-to-independent-publication, CLI opt-ins/report-only privacy, API failure/partial ID recovery, stale heads/base/closed/draft/fork checks, revocation/generation changes, concurrent leases, before/after-intent crash recovery, uncertain absent/pending/confirmed reconciliation and idempotency.
+  - `uv --cache-dir .cache/uv run --locked --offline --no-sync ruff check .`: **passed**.
+  - `uv --cache-dir .cache/uv run --locked --offline --no-sync ruff format --check .`: **122 files already formatted**.
+  - `uv --cache-dir .cache/uv run --locked --offline --no-sync mypy`: **106 source files passed**.
+  - `uv --cache-dir .cache/uv lock --check --offline`: **passed, 62 packages resolved**; no dependency changes or installations.
+  - `docker compose --env-file .env.example config --quiet`: **passed**, without starting persistent services.
+  - Docker was initially stopped and then required sandbox-external engine access; the first attempted integration setup did not run tests. After starting Docker, all test databases/containers were disposable and cleaned by the runner.
+
+The [publication runbook](runbooks/github-publication.md) includes test repository/App permission-upgrade instructions, private local preview, explicit publish commands, duplicate/stale/revocation checks, metadata inspection, migration precautions and uncertainty investigation. Real App registration/permission consent, tunnel, live PR creation, actual GitHub publication and manual end-to-end smoke validation remain **unperformed**; live verification is optional and separate from this local/mocked phase gate. Automated publication scheduling, retention and production deployment remain deferred. Git history and the task report record feature commits and any completed-phase push after staged validation.
+
+## Phase 6B: authenticated dashboard
 
 Implement backend GitHub App user authorization, opaque sessions, server-side access checks, typed frontend API access, and the read-only dashboard. Use mock identities only in local/test mode.
 
@@ -279,4 +297,4 @@ Acceptance criteria for a future authorized cloud phase:
 
 ## Current manual steps and remaining work
 
-Phases 2-5 are verified to their documented local/mocked scope, including real Redis/Celery transport and PostgreSQL-backed execution. Follow the backend/analysis/async runbooks; no persistent user stack, live App/model setup, Linux deployment or published feedback is claimed. Remaining foundations, optional Semgrep, publishing, OAuth/dashboard, automatic accounting/retention/orphan cleanup, CI and cloud remain deferred. Account/tunnel/live evaluation require separate manual opt-ins. Mocked cost tests do not establish an API balance or invoice ceiling.
+Phases 2-5 are verified to their documented local/mocked scope, including real Redis/Celery transport and PostgreSQL-backed execution. Phase 6 adds independent publication with mocked GitHub verification; see its evidence above. Follow the backend/analysis/async runbooks; no persistent user stack, live App/model setup, Linux deployment or published feedback is claimed. Remaining foundations, optional Semgrep, live publication smoke verification, OAuth/dashboard, automatic accounting/retention/orphan cleanup, CI and cloud remain deferred. Account/tunnel/live evaluation require separate manual opt-ins. Mocked cost tests do not establish an API balance or invoice ceiling.

@@ -1,4 +1,4 @@
-"""Bounded, read-only GitHub.com adapter. Credentials and source never enter errors/logs."""
+"""Bounded GitHub.com adapter. Advisory writes require a separate explicit opt-in."""
 
 import base64
 import hashlib
@@ -28,17 +28,45 @@ from shrike.domain.github import (
     GitHubPullRequest,
     GitHubRepository,
 )
+from shrike.domain.publication import PublicationPlan, PublishedComment, PublishedReview
 
-from .schemas import FileData, GitHubModel, InstallationData, PullRequestData, RepositoryData
+from .schemas import (
+    SHA,
+    FileData,
+    GitHubID,
+    GitHubModel,
+    InstallationData,
+    PullRequestData,
+    RepositoryData,
+)
 
 API_ORIGIN = "https://api.github.com"
 API_VERSION = "2026-03-10"
 READ_PERMISSIONS = {"metadata": "read", "contents": "read", "pull_requests": "read"}
+WRITE_PERMISSIONS = {"metadata": "read", "pull_requests": "write"}
+PUBLICATION_READ_PERMISSIONS = {"metadata": "read", "pull_requests": "read"}
 
 
 class TokenData(GitHubModel):
     token: SecretStr = Field(min_length=1, max_length=16384)
     expires_at: AwareDatetime
+
+
+class BotData(GitHubModel):
+    id: GitHubID
+    login: str = Field(min_length=1, max_length=110)
+    type: str = Field(max_length=30)
+
+
+class CommentData(GitHubModel):
+    id: GitHubID
+    body: str | None = Field(max_length=65536)
+    user: BotData
+
+
+class ReviewData(CommentData):
+    commit_id: SHA
+    state: str = Field(max_length=30)
 
 
 @dataclass
@@ -73,6 +101,7 @@ class GitHubAppClient:
         max_files: int = 20,
         max_file_bytes: int = 204800,
         max_diff_bytes: int = 524288,
+        publishing_enabled: bool = False,
     ) -> None:
         try:
             key = load_pem_private_key(private_key, password=None)
@@ -82,12 +111,14 @@ class GitHubAppClient:
             raise GitHubError("invalid_app_configuration") from None
         self.app_id, self._key, self._issuer = app_id, private_key, client_id or str(app_id)
         self.clock, self.sleep = clock, sleep
+        self.publishing_enabled = publishing_enabled
+        self._bot_login: str | None = None
         self.max_files, self.max_file_bytes, self.max_diff_bytes = (
             max_files,
             max_file_bytes,
             max_diff_bytes,
         )
-        self._tokens: OrderedDict[tuple[int, int | None], CachedToken] = OrderedDict()
+        self._tokens: OrderedDict[tuple[int, int | None, bool], CachedToken] = OrderedDict()
         self._lock = threading.Lock()
         for name in ("httpx", "httpx2", "httpcore", "httpcore2"):
             logging.getLogger(name).disabled = True
@@ -153,8 +184,9 @@ class GitHubAppClient:
         body: dict[str, object] | None = None,
         accept: str = "application/vnd.github+json",
         limit: int = 2097152,
+        retry_safe: bool = True,
     ) -> tuple[bytes, str | None]:
-        for attempt in range(3):
+        for attempt in range(3 if retry_safe else 1):
             try:
                 start = time.monotonic()
                 with self._http.stream(
@@ -191,6 +223,8 @@ class GitHubAppClient:
                             "github_rate_limited", retry_at=self._retry_time(response.headers)
                         )
                     if status >= 500:
+                        if not retry_safe:
+                            raise GitHubError("github_write_uncertain")
                         if attempt < 2:
                             self.sleep(0.25 * 2**attempt)
                             continue
@@ -201,6 +235,8 @@ class GitHubAppClient:
                     if status == 401:
                         raise GitHubError("github_authentication_failed")
                     if status in {403, 404, 410, 422}:
+                        if status == 422 and not retry_safe:
+                            raise GitHubError("github_invalid_review")
                         raise GitHubError(
                             "github_not_found" if status in {404, 410} else "github_access_denied"
                         )
@@ -208,6 +244,8 @@ class GitHubAppClient:
                         raise GitHubError("unexpected_github_status")
                     return data, response.headers.get("link")
             except httpx.RequestError:
+                if not retry_safe:
+                    raise GitHubError("github_write_uncertain") from None
                 if attempt < 2:
                     self.sleep(0.25 * 2**attempt)
                     continue
@@ -216,17 +254,27 @@ class GitHubAppClient:
                 ) from None
         raise AssertionError("Unreachable")
 
-    def _token(self, installation_id: int, repository_id: int | None) -> str:
+    def _token(
+        self, installation_id: int, repository_id: int | None, *, write: bool = False
+    ) -> str:
         if not 0 < installation_id < 2**63:
             raise GitHubError("invalid_github_identity")
-        scope = (installation_id, repository_id)
+        if write and (not self.publishing_enabled or repository_id is None):
+            raise GitHubError("publishing_disabled")
+        scope = (installation_id, repository_id, write)
         with self._lock:
             cached = self._tokens.get(scope)
             if cached and cached.expires_at > self.clock() + 60:
                 self._tokens.move_to_end(scope)
                 return cached.value.get_secret_value()
             body: dict[str, object] = {
-                "permissions": READ_PERMISSIONS
+                "permissions": (
+                    WRITE_PERMISSIONS
+                    if write
+                    else PUBLICATION_READ_PERMISSIONS
+                    if self.publishing_enabled
+                    else READ_PERMISSIONS
+                )
                 if repository_id is not None
                 else {"metadata": "read"}
             }
@@ -265,7 +313,7 @@ class GitHubAppClient:
                 if error.code != "github_authentication_failed" or attempt:
                     raise
                 with self._lock:
-                    self._tokens.pop((installation_id, repository_id), None)
+                    self._tokens.pop((installation_id, repository_id, False), None)
         raise AssertionError("Unreachable")
 
     def installation(self, installation_id: int) -> GitHubInstallation:
@@ -280,10 +328,16 @@ class GitHubAppClient:
         )
 
     def _pages(
-        self, installation_id: int, repository_id: int | None, path: str, *, inventory: bool = False
+        self,
+        installation_id: int,
+        repository_id: int | None,
+        path: str,
+        *,
+        inventory: bool = False,
+        bound: int | None = None,
     ) -> list[object]:
         items: list[object] = []
-        bound = 1000 if inventory else self.max_files
+        bound = bound if bound is not None else 1000 if inventory else self.max_files
         for page in range(1, 12):
             raw, link = self._get(
                 installation_id, repository_id, f"{path}?per_page=100&page={page}"
@@ -327,6 +381,108 @@ class GitHubAppClient:
             except (ValueError, KeyError, TypeError, RecursionError):
                 raise GitHubError("invalid_github_pagination") from None
         raise GitHubError("github_pagination_limit")
+
+    def _own_bot(self) -> str:
+        if self._bot_login is None:
+            raw, _ = self._request("GET", "/app", self._jwt())
+            try:
+                app = json.loads(raw)
+                if app["id"] != self.app_id or not re.fullmatch(
+                    r"[a-zA-Z0-9-]{1,100}", app["slug"]
+                ):
+                    raise ValueError
+                self._bot_login = app["slug"] + "[bot]"
+            except (KeyError, ValueError, TypeError, RecursionError):
+                raise GitHubError("invalid_github_identity") from None
+        return self._bot_login
+
+    def _published_review(self, data: object) -> PublishedReview:
+        record = ReviewData.model_validate(data)
+        return PublishedReview(
+            record.id,
+            record.commit_id,
+            record.body or "",
+            record.user.type == "Bot" and record.user.login == self._own_bot(),
+            record.state,
+        )
+
+    def reviews(
+        self, installation_id: int, repository: GitHubRepository, number: int
+    ) -> tuple[PublishedReview, ...]:
+        path = self._review_path(repository, number)
+        try:
+            return tuple(
+                self._published_review(item)
+                for item in self._pages(installation_id, repository.id, path, bound=1000)
+            )
+        except (ValueError, TypeError, RecursionError):
+            raise GitHubError("invalid_github_response") from None
+
+    def review_comments(
+        self, installation_id: int, repository: GitHubRepository, number: int, review_id: int
+    ) -> tuple[PublishedComment, ...]:
+        if not 0 < review_id < 2**63:
+            raise GitHubError("invalid_github_identity")
+        path = f"{self._review_path(repository, number)}/{review_id}/comments"
+        try:
+            records = TypeAdapter(list[CommentData]).validate_python(
+                self._pages(installation_id, repository.id, path, bound=1000)
+            )
+            return tuple(
+                PublishedComment(
+                    r.id, r.body or "", r.user.type == "Bot" and r.user.login == self._own_bot()
+                )
+                for r in records
+            )
+        except (ValueError, TypeError, RecursionError):
+            raise GitHubError("invalid_github_response") from None
+
+    def _review_path(self, repository: GitHubRepository, number: int) -> str:
+        if not 0 < number <= 2147483647:
+            raise GitHubError("invalid_github_identity")
+        return f"{self._path(repository)}/pulls/{number}/reviews"
+
+    def create_review(
+        self,
+        installation_id: int,
+        repository: GitHubRepository,
+        number: int,
+        head_sha: str,
+        plan: PublicationPlan,
+    ) -> PublishedReview:
+        if not self.publishing_enabled:
+            raise GitHubError("publishing_disabled")
+        self._sha(head_sha)
+        path = self._review_path(repository, number)
+        # Identity/token failures precede the review POST and can safely fail without a write.
+        self._own_bot()
+        token = self._token(installation_id, repository.id, write=True)
+        try:
+            raw, _ = self._request(
+                "POST",
+                path,
+                token,
+                retry_safe=False,
+                body={
+                    "commit_id": head_sha,
+                    "event": "COMMENT",
+                    "body": plan.body,
+                    "comments": [comment.github_payload() for comment in plan.comments],
+                },
+            )
+            return self._published_review(json.loads(raw))
+        except GitHubError as error:
+            if error.code in {
+                "github_invalid_review",
+                "github_access_denied",
+                "github_not_found",
+                "github_authentication_failed",
+                "github_rate_limited",
+            }:
+                raise
+            raise GitHubError("github_write_uncertain") from None
+        except Exception:
+            raise GitHubError("github_write_uncertain") from None
 
     def repositories(self, installation_id: int) -> tuple[GitHubRepository, ...]:
         try:

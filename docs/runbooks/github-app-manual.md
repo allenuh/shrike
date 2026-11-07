@@ -1,6 +1,6 @@
 # GitHub App registration and live verification: manual operator steps
 
-These account, key, tunnel, and real-repository steps have **not** been performed by Codex. GitHub behavior is verified with synthetic fixtures/mocked responses. Follow this runbook only when intentionally configuring a test installation. Phase 5 uses the separate [Redis/Celery runbook](async-processing.md) for automatic execution with mock AI; no hosted model or publishing is enabled. Prefer a disposable repository with invented code/data.
+These account, key, tunnel, and real-repository steps have **not** been performed by Codex. GitHub behavior is verified with synthetic fixtures/mocked responses. Follow this runbook only when intentionally configuring a test installation. Phase 5 uses the separate [Redis/Celery runbook](async-processing.md) for automatic execution with mock AI; no hosted model or publishing is enabled by those workers. [Phase 6 publication](github-publication.md) requires independent opt-ins and documents the optional write-permission upgrade. Prefer a disposable repository with invented code/data.
 
 ## Permissions verified against current documentation
 
@@ -11,7 +11,7 @@ Documentation checked on 2026-11-06; the adapter pins REST API version `2026-03-
 | Metadata | Read | Repository identity and installation inventory. Inventory uses a metadata-only installation token. |
 | Pull requests | Read | PR metadata, diff format, and changed-file listing. |
 | Contents | Read | Immutable commit and blob reads. |
-| Pull requests | No write access | Add write permission only in a separately implemented publishing phase. |
+| Pull requests | No write access for ingestion-only setup | Phase 6 manual publication requires Read and write plus installation consent; see the publication runbook. |
 | Other repository, organization, account permissions | None | Not needed for ingestion. |
 
 GitHub documents [PR read/file-list permissions](https://docs.github.com/en/rest/pulls/pulls), [commit read permissions](https://docs.github.com/en/rest/commits/commits), and [installation inventory access](https://docs.github.com/en/rest/apps/installations). The inventory endpoint needs an installation token and no additional permissions. Use the minimum repository permissions above; no personal access token or user OAuth grant is required by the server. See [choosing App permissions](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/choosing-permissions-for-a-github-app).

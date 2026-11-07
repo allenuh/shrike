@@ -40,6 +40,12 @@ class Settings(BaseSettings):
     github_mode: Literal["disabled", "live"] = Field(
         default="disabled", validation_alias="GITHUB_MODE"
     )
+    github_publishing_enabled: bool = Field(
+        default=False, validation_alias="GITHUB_PUBLISHING_ENABLED"
+    )
+    github_publish_repository_grants: str = Field(
+        default="", validation_alias="GITHUB_PUBLISH_REPOSITORY_GRANTS"
+    )
     github_app_id: int = Field(default=0, ge=0, lt=2**63, validation_alias="GITHUB_APP_ID")
     github_app_client_id: str | None = Field(default=None, validation_alias="GITHUB_APP_CLIENT_ID")
     github_app_private_key_path: Path | None = Field(
@@ -61,6 +67,7 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_security(self) -> "Settings":
+        parse_grants(self.github_publish_repository_grants)
         try:
             url = make_url(self.database_url.get_secret_value())
             if url.drivername != "postgresql+psycopg" or not url.database:

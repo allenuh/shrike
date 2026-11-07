@@ -8,7 +8,7 @@ from uuid import uuid4
 import pytest
 import redis
 from celery.contrib.testing.worker import start_worker
-from fakes import ReviewGitHub, github_fixture
+from fakes import PublishingGitHub, github_fixture
 from fastapi.testclient import TestClient
 from pydantic import SecretStr
 from sqlalchemy import func, select
@@ -20,9 +20,13 @@ from shrike.adapters.persistence.models import (
     ReviewExecution,
     ReviewFinding,
     ReviewJob,
+    ReviewPublication,
 )
+from shrike.adapters.persistence.publication import SqlPublicationStore
 from shrike.application.dispatch import dispatch_one
+from shrike.application.publication import publish_review
 from shrike.config import Settings
+from shrike.domain.access import ReadScope, RepositoryGrant
 from shrike.domain.states import JobState
 from shrike_api.main import create_app as create_api
 from shrike_worker.celery_app import CeleryPublisher, create_app
@@ -70,7 +74,7 @@ def test_signed_event_real_redis_celery_ruff_to_database(
     lose_broker_data: bool,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    github = ReviewGitHub()
+    github = PublishingGitHub()
     # This end-to-end test uses actual isolated Ruff; GitHub and AI are deterministic fakes.
     runtime = Runtime(database, github, 12345, queue_settings)
     app = create_app(queue_settings, runtime.consume)
@@ -117,6 +121,15 @@ def test_signed_event_real_redis_celery_ruff_to_database(
                     session.scalars(select(QueueMessage).where(QueueMessage.kind == "review"))
                 )
                 assert len(messages) == 1 and str(messages[0].request_id) == request_id
+                assert session.scalar(select(func.count()).select_from(ReviewPublication)) == 0
+                job_id = job.id
+            # Publication is independently opted in after the analysis worker has stopped.
+            store = SqlPublicationStore(database)
+            scope = ReadScope((RepositoryGrant(710001, 810001),))
+            outcome = publish_review(job_id, scope, store, github, 12345)
+            assert outcome and outcome.state == "published" and outcome.comment_ids == (200,)
+            assert publish_review(job_id, scope, store, github, 12345) is None
+            assert len(github.plans) == 1
         captured = capsys.readouterr()
         assert SECRET not in captured.out + captured.err
         assert "value = 10 / 0" not in captured.out + captured.err

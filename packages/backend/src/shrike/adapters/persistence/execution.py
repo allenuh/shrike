@@ -52,7 +52,7 @@ class SqlExecutionStore:
         self.lease_seconds, self.deadline_seconds = lease_seconds, deadline_seconds
         self.retry_base_seconds, self.repository_limit = retry_base_seconds, repository_limit
 
-    def _records(
+    def records(
         self, session: Session, job_id: UUID
     ) -> tuple[Installation, Repository, PullRequest, ReviewJob] | None:
         # Always lock in the same ownership order as ingestion, never across external work.
@@ -82,7 +82,7 @@ class SqlExecutionStore:
         return installation, repository, pr, job
 
     @staticmethod
-    def _current(
+    def current(
         installation: Installation, repository: Repository, pr: PullRequest, job: ReviewJob
     ) -> bool:
         return (
@@ -134,7 +134,7 @@ class SqlExecutionStore:
     def claim(self, envelope: Envelope) -> ReviewClaim | None:
         now = datetime.now(UTC)
         with self.database.session() as session, session.begin():
-            records = self._records(session, envelope.record_id)
+            records = self.records(session, envelope.record_id)
             if records is None or envelope.kind != "review":
                 return None
             installation, repository, pr, job = records
@@ -152,7 +152,7 @@ class SqlExecutionStore:
                 return None
             if job.state != JobState.PENDING or job.available_at > now:
                 return None
-            if not self._current(*records):
+            if not self.current(*records):
                 self._end(session, job, "stale_or_revoked", canceled=True)
                 return None
             active = (
@@ -227,8 +227,8 @@ class SqlExecutionStore:
 
     def checkpoint(self, claim: ReviewClaim) -> None:
         with self.database.session() as session, session.begin():
-            records = self._records(session, claim.id)
-            if records is None or not self._owned(records, claim) or not self._current(*records):
+            records = self.records(session, claim.id)
+            if records is None or not self._owned(records, claim) or not self.current(*records):
                 raise ReviewError("stale_execution")
             if datetime.now(UTC) >= claim.deadline:
                 raise ReviewError("review_deadline")
@@ -236,11 +236,11 @@ class SqlExecutionStore:
 
     def complete(self, claim: ReviewClaim, report: Report) -> None:
         with self.database.session() as session, session.begin():
-            records = self._records(session, claim.id)
+            records = self.records(session, claim.id)
             if records is None or not self._owned(records, claim):
                 return
             job = records[3]
-            if not self._current(*records) or datetime.now(UTC) >= claim.deadline:
+            if not self.current(*records) or datetime.now(UTC) >= claim.deadline:
                 self._end(session, job, "stale_or_expired", canceled=True)
                 return
             now = datetime.now(UTC)
@@ -297,7 +297,7 @@ class SqlExecutionStore:
         canceled: bool = False,
     ) -> None:
         with self.database.session() as session, session.begin():
-            records = self._records(session, claim.id)
+            records = self.records(session, claim.id)
             if (
                 records is not None
                 and records[3].state == JobState.RUNNING
@@ -311,7 +311,7 @@ class SqlExecutionStore:
                     code,
                     transient=transient,
                     retry_at=retry_at,
-                    canceled=canceled or not self._current(*records),
+                    canceled=canceled or not self.current(*records),
                 )
 
     def recover(self) -> int:
@@ -331,7 +331,7 @@ class SqlExecutionStore:
         recovered = 0
         for job_id in ids:
             with self.database.session() as session, session.begin():
-                records = self._records(session, job_id)
+                records = self.records(session, job_id)
                 if records is not None:
                     job = records[3]
                     if job.state == JobState.RUNNING and (
@@ -343,12 +343,12 @@ class SqlExecutionStore:
 
     def publication_candidate(self, job_id: UUID) -> bool:
         with self.database.session() as session:
-            records = self._records(session, job_id)
+            records = self.records(session, job_id)
             return bool(
                 records
                 and records[3].state == JobState.COMPLETED
                 and records[3].publication_eligible
-                and self._current(*records)
+                and self.current(*records)
             )
 
 

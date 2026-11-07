@@ -23,6 +23,7 @@ TABLES = {
     "ai_spend_entries",
     "queue_messages",
     "provider_windows",
+    "review_publications",
 }
 
 
@@ -40,7 +41,7 @@ def test_upgrade_downgrade_upgrade_and_metadata_agreement(database: Database) ->
         command.upgrade(config, "head")
         command.check(config)
         assert (
-            connection.scalar(text("SELECT version_num FROM alembic_version")) == "0005_execution"
+            connection.scalar(text("SELECT version_num FROM alembic_version")) == "0006_publication"
         )
     assert set(inspect(database.engine).get_table_names()) == TABLES | {"alembic_version"}
 
