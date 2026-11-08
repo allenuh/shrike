@@ -306,6 +306,20 @@ Liveness checks process health; API readiness verifies required database/schema 
 
 ## Decisions and tradeoffs
 
+### Phase 8 evaluation boundary
+
+[ADR 0007](adr/0007-system-evaluation.md) rebaselines the requested Phase 8 to
+production-readiness testing and measurable evaluation. The new offline evaluator
+composes the existing engine, analyzer/provider ports and a cold fixture cache;
+it cannot initialize a hosted provider. Labeled exact-line metrics and bounded
+HTTP/queue benchmarks are described in [EVALUATION.md](EVALUATION.md) and
+[PERFORMANCE.md](PERFORMANCE.md). Generated reports remain ignored artifacts.
+The existing operator-only hosted evaluation additionally uses persistent
+one-per-minute admission before spending reservation. No schema migration,
+queue/provider substitution or backend architecture change is required. Hosted
+operational hardening moves to Phase 8B; local production-readiness claims remain
+limited by the measured weaknesses and unperformed deployment/live checks.
+
 | Decision | Rationale and cost |
 | --- | --- |
 | Modular monolith + worker | Shared invariants and one migration history; independent worker scaling. Requires disciplined imports/interfaces rather than network boundaries. |

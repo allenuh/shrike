@@ -20,6 +20,7 @@ from shrike.adapters.persistence.analysis import (
     initialize_budget,
 )
 from shrike.adapters.persistence.database import Database
+from shrike.adapters.persistence.execution import SqlProviderAdmission
 from shrike.analysis_config import AnalysisSettings
 from shrike.application.review import ReviewEngine
 from shrike.config import Settings, parse_grants
@@ -180,6 +181,13 @@ def main() -> None:
             live_enabled=config.live_enabled,
             allow_private=config.allow_private,
             model_allowlist=tuple(config.allowlist.split(",")),
+            # Persistent, global to this ledger database; no waiting or paid retry.
+            # A second uncached live evaluation inside 60 seconds fails closed.
+            admission=(
+                SqlProviderAdmission(database, "hosted-evaluation", 1)
+                if evaluation and args.live and database is not None
+                else None
+            ),
         )
         if evaluation:
             cases = TypeAdapter(list[EvalCase]).validate_json(bounded_read(args.dataset))

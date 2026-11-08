@@ -22,6 +22,7 @@ from shrike.adapters.persistence.analysis import (
     initialize_budget,
 )
 from shrike.adapters.persistence.database import Database
+from shrike.adapters.persistence.execution import SqlProviderAdmission
 from shrike.adapters.persistence.models import (
     AiBudget,
     AiSpendEntry,
@@ -342,3 +343,39 @@ def test_missing_ledger_table_fails_closed(database: Database) -> None:
         connection.execute(text("DROP TABLE ai_spend_entries"))
     with pytest.raises(ReviewError, match="ledger_unavailable"):
         SqlSpendingLedger(database).reserve(identity("never-dispatched"), 100, profile(), 500, 100)
+
+
+def test_hosted_evaluation_rate_is_durable_and_precedes_paid_reservation(
+    seeded_database: Database,
+) -> None:
+    initialize_budget(seeded_database, 0, confirmed=True)
+    SqlProviderAdmission(seeded_database, "hosted-evaluation", 1).acquire()
+
+    def forbidden(request: httpx.Request) -> httpx.Response:
+        pytest.fail("Throttled evaluation must not make a paid HTTP attempt")
+
+    provider = OpenAIProvider(
+        "gpt-6-luna", SecretStr("synthetic-key"), transport=httpx.MockTransport(forbidden)
+    )
+    try:
+        engine = ReviewEngine(
+            NoopAnalyzer(),
+            provider,
+            SqlAnalysisStore(seeded_database, ReadScope((RepositoryGrant(710001, 810001),))),
+            pricing=profile(),
+            ledger=SqlSpendingLedger(seeded_database),
+            live_enabled=True,
+            allow_private=True,
+            model_allowlist=("gpt-6-luna",),
+            admission=SqlProviderAdmission(seeded_database, "hosted-evaluation", 1),
+        )
+        result = engine.analyze(
+            snapshot(EvalCase(id="throttled", code="value = 1\n", expected=None))
+        )
+        assert result.reason == "provider_throttled" and result.retry_at is not None
+        with seeded_database.session() as session:
+            assert session.scalar(select(func.count()).select_from(AiSpendEntry)) == 0
+        with pytest.raises(ReviewError, match="provider_throttled"):
+            SqlProviderAdmission(seeded_database, "hosted-evaluation", 1).acquire()
+    finally:
+        provider.close()

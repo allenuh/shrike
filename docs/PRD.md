@@ -57,7 +57,7 @@ These are proposed configurable defaults, to be measured during implementation. 
 | Analyzer execution | 30 seconds per analyzer per run; bounded CPU, memory, process count, input, and output. |
 | LLM | 12,000 input tokens, 2,000 output tokens, 30-second request timeout; omit only at file/hunk boundaries and disclose coverage. |
 | AI context | 64 KiB selected diff and 128 KiB complete serialized request, also subject to token/fetched-diff limits; disclose omissions. |
-| Paid AI (Phase 8) | Disabled by default; 1 global live request, 1 attempt per logical call, $0.02 maximum per review. Explicit live evaluation opt-in and finite request cap; default cap 0. |
+| Paid AI (guarded Phase 4 adapter; future Phase 8B operations) | Disabled by default; 1 global live request, 1 attempt per logical call, $0.02 maximum per review. Explicit live evaluation opt-in and finite request cap; default cap 0. |
 | API development budget | Approximately $10 total; cumulative warning $7.50, hard stop $9.00 including reserved/uncertain charges and known prior/external development spend. No restart/daily reset. |
 | Review | 180-second attempt deadline, at most 3 processing attempts, bounded exponential backoff with jitter. |
 | Concurrency | Initially 2 active jobs per worker and 1 per repository; enforce using database claims. |
@@ -100,7 +100,7 @@ Maintain a synthetic corpus with at least ten seeded actionable issues and ten c
 | Private-code egress | Mock default; hosted adapter disabled until enabled explicitly with a documented provider data policy and operator opt-in. |
 | Dashboard authorization | GitHub App user authorization, short access-cache lifetime, revocation handling, cross-repository tests. Defer custom organizations/roles. |
 | Local resources | PostgreSQL, Redis, Node, and analysis containers consume memory/CPU. Start with 4 CPUs and 8 GiB available to Docker as an estimate, then measure. No paid service is required. |
-| Hosted model charges | Zero in mock mode. Phase 8 uses current verified official pricing, persistent cumulative reservations, $7.50 warning/$9.00 stop within the approximate $10 development budget, and bounded opt-in evaluation. External/account charges require reconciliation; local estimates do not guarantee invoice totals. |
+| Hosted model charges | Zero in mock mode. Hosted operation uses current verified official pricing, persistent cumulative reservations, $7.50 warning/$9.00 stop within the approximate $10 development budget, and bounded opt-in evaluation. External/account charges require reconciliation; local estimates do not guarantee invoice totals. |
 | Cloud expense | ECS, database, Redis, logs, backups, networking/NAT, and secrets incur recurring costs. Estimate current regional prices only when cloud work is authorized. |
 | Scope creep | Extra languages, reruns, cloud, and paid adapters require separate phases. Defer features that do not improve the end-to-end MVP. |
 

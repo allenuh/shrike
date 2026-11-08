@@ -20,6 +20,16 @@ For a database-free fixture demo, leave `DATABASE_URL` unset in this shell. With
 
 `evaluate` loads 20 bounded synthetic cases: ten defects, ten clean examples. Expected offline result is 10 hits, zero misses, zero false-positive cases, with nine static hits and one deterministic mock hit. This measures the curated rules/pipeline, not model intelligence, broad vulnerability recall, or general false-positive rates. The prompt-injection clean fixture is data only. A corpus expectation mismatch exits 1; configuration/scanner errors exit 2.
 
+Phase 8 adds a separate 32-change labeled evaluator with exact-line precision,
+recall, false positives, latency and machine-readable reports; see
+[EVALUATION.md](../EVALUATION.md). Its challenging cases deliberately expose
+misses/false positives and supersede the curated corpus for quality measurement.
+The legacy optional live evaluator below is now additionally limited to one
+uncached admission per minute, persisted across restarts. A second uncached
+case inside that window stops with `provider_throttled` before reservation or
+dispatch. Use `--max-requests 1` for a separately authorized one-request session;
+never reset its ledger/session/rate clock to make a batch proceed.
+
 The CLI prints only numeric/safe metadata, never finding text, source, paths, credentials, or raw provider errors. To inspect a complete report, choose a new private output path explicitly:
 
 ```powershell

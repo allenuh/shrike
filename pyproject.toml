@@ -41,7 +41,10 @@ files = ["packages/backend/src", "services/api/src", "services/api/alembic", "se
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra --strict-markers"
-markers = ["integration: requires an explicitly supplied disposable PostgreSQL database"]
+markers = [
+    "integration: requires an explicitly supplied disposable PostgreSQL database",
+    "benchmark: opt-in bounded load measurements, excluded unless --run-benchmarks",
+]
 filterwarnings = ["error"]
 
 [[tool.mypy.overrides]]

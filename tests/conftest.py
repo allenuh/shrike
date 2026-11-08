@@ -23,6 +23,19 @@ ROOT = Path(__file__).resolve().parents[1]
 TEST_TOKEN = "synthetic-development-test-token-00001"
 
 
+def pytest_addoption(parser: pytest.Parser) -> None:
+    parser.addoption("--run-benchmarks", action="store_true", default=False)
+    parser.addoption("--benchmark-output", default=".cache/phase8/load.json")
+
+
+def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
+    if not config.getoption("--run-benchmarks"):
+        skip = pytest.mark.skip(reason="Use --run-benchmarks for bounded load measurement")
+        for item in items:
+            if "benchmark" in item.keywords:
+                item.add_marker(skip)
+
+
 def migration_config() -> Config:
     return Config(str(ROOT / "alembic.ini"))
 

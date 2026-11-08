@@ -75,9 +75,19 @@ Never hold database locks during network calls. Money reservations and potential
 
 ## Evaluation, evidence, and limitations
 
+The requested Phase 8 now means deterministic system testing/evaluation under
+[ADR 0007](adr/0007-system-evaluation.md); future hosted operations are Phase 8B.
+The new [labeled evaluator](EVALUATION.md) is hardwired to mock, reports model cost
+zero and unknown hosted/infrastructure cost as null, and initializes no hosted
+adapter. The separate operator live evaluator has persistent admission limited
+to one uncached request per 60 seconds across processes sharing its ledger
+database. A denied admission precedes reservation/dispatch, stops the batch and
+never sleeps/retries automatically. This does not change cumulative budget or
+request/session caps and does not authorize a real call.
+
 Live evaluation is a separate operator command, never a test or CI job. It requires `LLM_LIVE_EVAL_ENABLED=true`, a configured positive maximum, an explicit `--max-requests` between 1 and 5, a `--session` UUID, the normal live opt-ins, and the shared ledger. Session dispatch counts are persisted in spend entries; restarting with the same session cannot reset or increase its cap. Use only a synthetic/public corpus. Stop at the first limit/failure reached. Mock evaluation measures pipeline expectations, not actual model quality. No live evaluation was performed by this task.
 
-Before Phase 8 is verified, mocked and disposable-database tests must prove threshold equality/overflow, parallel reservations, per-review and evaluation caps, restart/restore behavior, stale pricing and unavailable ledger refusal, model/token bound failures, malformed results with usage, missing usage, dispatch/settlement crashes, duplicate settlement, uncertain-slot handling, retention independence, and disabled hidden retries. Capture logs for synthetic credential/source sentinels. All test responses remain mocked.
+Before Phase 8B operational hardening is verified, mocked and disposable-database tests must prove threshold equality/overflow, parallel reservations, per-review and evaluation caps, restart/restore behavior, stale pricing and unavailable ledger refusal, model/token bound failures, malformed results with usage, missing usage, dispatch/settlement crashes, duplicate settlement, uncertain-slot handling, retention independence, and disabled hidden retries. Preserve the existing Phase 4/8 regression evidence and add the outstanding operational recovery/restore checks. Capture logs for synthetic credential/source sentinels. All test responses remain mocked.
 
 This ledger can control only requests routed through it. It cannot observe this coding agent's billing, other tools/API keys/projects, unrelated account charges, taxes, exchange rates, or unreported prior spend. Import known outside costs before claiming remaining development allowance, use a dedicated provider project/key where possible, and reconcile provider billing before live batches. A provider-side budget alert is supplemental; do not assume it is an immediate hard cap. Price changes, provider accounting errors, compromised keys, stale restores, and administrator tampering can defeat local estimates. Fail-closed reservations trade availability for budget safety and may exhaust allowance without a completed review. No present documentation proves that $10 remains or guarantees an account invoice ceiling.
 

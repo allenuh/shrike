@@ -1,0 +1,6 @@
+{
+  "dataset_sha256": "aa59e24d76ad5c35d52b726109e40d375895e01b9fdbbc27247ed125591a663a",
+  "min_precision": 0.875,
+  "min_recall": 0.875,
+  "max_clean_case_false_positive_rate": 0.11764705882352941
+}

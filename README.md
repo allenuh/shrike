@@ -4,10 +4,12 @@ Canonical repository: [allenuh/shrike](https://github.com/allenuh/shrike).
 
 Shrike is an AI-assisted GitHub code review platform under development. The planned workflow will validate GitHub App webhooks, queue Python-focused reviews, combine Ruff and Semgrep findings with validated LLM suggestions, and publish feedback to GitHub. A dashboard will show history, findings, and metrics.
 
-**Current status: Phase 7 authenticated dashboard, verified locally with synthetic/mocked integrations.** The Next.js/TypeScript/Tailwind workspace includes overview metrics, accessible repositories, filtered/paginated reviews, file-grouped finding details, read-only policy/display settings and scoped system status. Default demo mode needs no credentials or backend. Explicit live mode uses FastAPI-owned GitHub App OAuth/PKCE, encrypted server-managed sessions and fresh repository authorization on every request. The existing webhook, Redis/Celery, isolated Ruff/mock analysis and independent advisory publication pipeline is preserved. No real model request, live GitHub login/smoke test, actual published feedback, CI workflow or cloud deployment is claimed.
+**Current status: Phase 8 system evaluation, verified to local synthetic/mocked scope.** The authenticated Next.js dashboard and existing webhook/Redis/Celery/Ruff/publication pipeline now have a repeatable CI-ready verification command, labeled quality corpus and bounded HTTP/queue benchmarks. Measurements expose security/data-flow misses, unreachable-code false positives and throttle-related attempt exhaustion. See the evaluation/performance documents below for evidence and limits. The dashboard defaults to a credential-free read-only demo; explicit live mode uses server-owned OAuth sessions and repository authorization. No real model request, live GitHub login/smoke test, actual published feedback, hosted CI run or cloud deployment is claimed.
 
 ## Project documents
 
+- [System evaluation](docs/EVALUATION.md): mock-only CI entry point, labeled precision/recall, security/failure coverage and measured weaknesses.
+- [Performance](docs/PERFORMANCE.md): reproducible loopback API/Redis/Celery load workloads, measurements, environment and limits.
 - [Product requirements](docs/PRD.md): requirements, MVP limits, non-goals, risks, and costs.
 - [Architecture](docs/ARCHITECTURE.md): repository layout, interfaces, lifecycle, schema, decisions, and threat model.
 - [AI cost controls](docs/AI_COST_CONTROLS.md): mock-only development, the approximate $10 API budget, and future paid-request safeguards.

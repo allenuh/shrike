@@ -18,11 +18,12 @@ Use `not started`, `in progress`, `blocked`, or `verified`. A phase is `verified
 | 5 | Asynchronous ingestion/review processing through Redis/Celery | Verified locally: real transport/storage/scanner, mocked GitHub/AI; fenced retries/concurrency/recovery and guarded operations pass |
 | 6 | Independent GitHub advisory publication and recovery (formerly 5B) | Verified locally: 349 tests, 91% coverage, mocked GitHub publication and real PostgreSQL/Redis/Celery/Ruff; evidence below |
 | 7 | Authenticated Shrike dashboard (formerly 6B) | Verified locally: 378 backend tests, 10 frontend unit/component tests, 8 desktop/mobile E2E tests, frontend checks and production build; live OAuth remains manual |
-| 7B | Local MVP hardening and portfolio evidence | Not started; deferred by the Phase 7 dashboard request |
-| 8 | Live model evaluation and operational accounting hardening | Separate follow-up; guarded adapter/ledger brought forward into Phase 4 |
+| 7B | Local MVP hardening and portfolio evidence | Testing/failure/load portions exercised by Phase 8; retention, backup/restore, deployment and portfolio gates remain incomplete |
+| 8 | Production-readiness testing and measurable system evaluation | Verified locally: 385 backend tests plus 2 runner tests, 10 frontend tests, 8 E2E, labeled metrics, API/queue load evidence; limitations below |
+| 8B | Live model evaluation and operational accounting hardening | Separate follow-up; guarded adapter/ledger brought forward into Phase 4 |
 | 9 | AWS ECS, Terraform, OpenTelemetry | Not started; deferred |
 
-Phase 2 supplies backend prerequisites; Phase 3 adds the inbox; Phase 4 adds standalone analysis; Phase 5 connects asynchronous processing. The user-requested Phase 6 publication supersedes 5B under [ADR 0005](adr/0005-github-publication.md); dashboard work initially became 6B. [ADR 0006](adr/0006-saas-dashboard.md) moves the user-requested dashboard into Phase 7 and defers hardening to 7B. Remaining local foundations, optional Semgrep/deployed-runner validation and hardening remain separately requested work. Phases 8/9 require a verified local MVP; cloud does not require a paid model. Historical phase records retain their original validation snapshots.
+Phase 2 supplies backend prerequisites; Phase 3 adds the inbox; Phase 4 adds standalone analysis; Phase 5 connects asynchronous processing. The user-requested Phase 6 publication supersedes 5B under [ADR 0005](adr/0005-github-publication.md); dashboard work initially became 6B. [ADR 0006](adr/0006-saas-dashboard.md) moves the user-requested dashboard into Phase 7 and defers hardening to 7B. Remaining local foundations, optional Semgrep/deployed-runner validation and hardening remain separately requested work. The user-requested Phase 8 evaluation is rebaselined under ADR 0007; hosted operations (8B) and cloud (9) remain separate follow-ups. Cloud does not require a paid model. Historical phase records retain their original validation snapshots.
 
 ## Project identity and AI budget update
 
@@ -279,7 +280,97 @@ Acceptance criteria:
 - CI runs all relevant unit/integration/E2E/security/build checks without paid services or real secrets. Document any intentionally manual checks as unperformed until executed.
 - Publish a local demo script, architecture explanation, screenshots using synthetic data, and measured limitations. Clearly distinguish offline demonstration from separately verified real GitHub behavior.
 
-## Phase 8: optional hosted LLM provider
+## Phase 8: production-readiness testing and measurable evaluation
+
+The user requested this phase on 2026-11-07. [ADR 0007](adr/0007-system-evaluation.md)
+rebaselines the earlier hosted-operations scope to 8B without advancing into
+retention, backup automation, cloud or real-model calls.
+
+Acceptance criteria:
+
+- A single repeatable CI-ready command runs backend unit/database/security and
+  failure tests, actual process-loss recovery, frontend checks/build/E2E and
+  bounded API/queue load tests with deterministic mocks.
+- A labeled clean/flawed synthetic corpus measures one-to-one exact-line
+  precision, recall, extra predictions/false positives, latency and reliable
+  mock cost, with machine-readable reports and explicit regression floors.
+- `docs/EVALUATION.md` and `docs/PERFORMANCE.md` describe actual environment,
+  methodology, limitations, unperformed checks and three measured weaknesses.
+- Generated results remain in ignored private output directories; no source,
+  prompts, credentials or host identity enter quality/load JSON. Hosted
+  evaluation remains separately opted in, cumulatively budgeted, request-capped
+  and persistently rate-limited; automated checks make no real calls.
+
+Verified evidence, 2026-11-07 local time (report timestamps 2026-11-08 UTC):
+
+- Implemented `scripts/verify.py`, `scripts/benchmark.py`, browser secret scan,
+  a 32-change/16-label corpus with reviewed rationales and a canonical-hash
+  regression floor, exact-line one-to-one scoring, content-free JSON reports,
+  bounded real HTTP/Redis/Celery/Ruff loads and an actual owned-process kill test.
+  Hosted operator evaluation adds durable one-per-minute admission before paid
+  reservation; its mocked test confirms zero reservation/outbound calls on denial.
+  No dependency installation, schema migration, application architecture replacement
+  or real external request was needed.
+- Full command executed:
+  `uv --cache-dir .cache/uv run --locked --offline --no-sync python scripts/verify.py --frontend --benchmarks --output-dir .cache/phase8/verified`:
+  **all 13 steps exit 0**, `checks.json complete=true`; backend **384 passed,
+  3 intentional benchmark skips in 94.25 s, 91% statement coverage**. Frontend
+  lint/format/type checks and production build passed; **10 component tests in
+  3.48 s**, **8 desktop/mobile E2E in 9.0 s**, **33 browser chunks with zero forbidden
+  secret/canary matches**, and **3 load checks passed in 37.21 s**. Playwright JSON
+  records 8 expected/0 unexpected/0 flaky/0 skipped tests. No browser source changed.
+- Final backend/evaluation/load command after adding the durable throttle test and
+  enriched tool-version metadata:
+  `uv --cache-dir .cache/uv run --locked --offline --no-sync python scripts/verify.py --benchmarks --output-dir .cache/phase8/final`:
+  **all 6 steps exit 0**, `checks.json complete=true`; **385 passed, 3 intentional
+  skips in 77.06 s, 91% coverage**; **3 load checks passed in 40.23 s**. The full
+  backend suite includes ephemeral migration up/down/up and metadata agreement,
+  scoped authorization, HMAC/duplicates/malformed/permission failures, broker loss,
+  concurrent claims, worker/process loss, stale fences/heads, injection/privacy,
+  malformed/low-confidence model findings and ambiguous independent publication.
+- The subsequent runner environment-hardening tests mock all subprocess commands:
+  `uv --cache-dir .cache/uv run --locked --offline --no-sync pytest tests/unit/test_verification.py -q -p no:cacheprovider --basetemp=.cache/phase8/verification-unit-tmp --tb=short`:
+  **2 passed in 0.08 s**. They verify inherited credentials/persistent URLs are
+  removed, mock/CI modes are forced, failed commands stop execution and unrun
+  planned checks cannot be reported as complete. This is separate from the
+  385-test full-suite count.
+- Final labeled metrics: **14 TP, 2 FP, 2 FN; precision/recall/F1 0.875;
+  clean-case FP 2/17 (11.76%); zero wrong-line predictions; p50 469 ms/p95 532 ms**.
+  Cold per-case cache, real isolated Ruff, mock AI only; estimated model cost
+  **$0.000000**, hosted/infrastructure costs unknown/null. The gate passed against
+  the pinned corpus and reviewed baseline. These are small-corpus observations,
+  not general real-model quality claims.
+- Final loopback HTTP: **120 requests, concurrency 8, 0 unexpected responses,
+  0.281 s window, 427.05 requests/s; accepted-webhook p95 47 ms**. Final queue
+  capacity: **10/10 completed, concurrency/peak 2, 13 attempts, p95 13.799 s**
+  (<60 s local target), longest attempt below 180 s. Default-60-RPM contention
+  with one-second test backoff: **9 completed/1 failed (`provider_throttled`),
+  18 attempts, max 3, p95 17.740 s**. Rate 6000 capacity and shortened backoff
+  are explicit test settings, not production configuration changes.
+- Final lint/type validation: `uv --cache-dir .cache/uv run --locked --offline --no-sync ruff check .`
+  **passed**; `ruff format --check .` (same uv prefix) and `mypy` **passed**
+  (**128 source files** for mypy). `uv --cache-dir .cache/uv lock --check --offline`
+  **passed, 62 packages**; `docker compose --env-file .env.example config --quiet`
+  **passed**. No locks/dependency versions changed.
+- Environment: Windows x64/Python 3.12.6, AMD Ryzen 5 7600X (6 cores/12 logical),
+  Docker Linux engine 29.9.2 (12 CPUs, 16,285,208,576 VM memory bytes), Node
+  26.3.0/npm 11.2.0, installed Edge. Reports include installed backend versions.
+  Results remain ignored under `.cache/phase8/final` and `.cache/phase8/verified`;
+  generated artifacts/secrets are not committed. Initial restricted cache/temp
+  failures and two prototype queue timeouts are disclosed in PERFORMANCE.md.
+
+[EVALUATION.md](EVALUATION.md) identifies the three priority weaknesses: missed
+security/data-flow issues, reachability false positives, and admission consuming
+bounded execution attempts. [PERFORMANCE.md](PERFORMANCE.md) records fixtures,
+denominators, environment, run variance and limits. This phase is verified to
+its requested repeatable local/mocked testing scope. Linux Celery prefork kill
+limits, realistic sustained/large-diff loads, live GitHub/OAuth/publication/model
+compatibility, hosted CI execution and production deployment remain **unperformed**.
+Retention, backup/restore automation, scanner orphan cleanup and full operational
+telemetry remain uncompleted 7B/8B/9 work; no production-readiness certification is
+claimed. Git history and the task report record the authorized commit/push.
+
+## Phase 8B: optional hosted LLM provider operations
 
 Separate requested follow-up after local MVP hardening (Phase 7B) for real model quality evaluation and operational billing reconciliation/audit/restore workflows. Phase 4 now implements the guarded OpenAI adapter, model configuration, spending gate and capped evaluation command under ADR 0003. The original gates below remain the target for mature hosted operation; mocked contracts are not evidence of real account/model compatibility. Reverify current `gpt-6-luna` support/pricing and all egress/billing assumptions before any separately authorized live batch. No tools or autonomous fixes.
 
@@ -294,7 +385,7 @@ Acceptance criteria (all automated checks use fake model transports/responses an
 - Add an operator-only live evaluation command with separate explicit opt-in, mandatory finite request cap (default 0), persistent session/counter across restart, synthetic/public corpus, and the same global/per-review budget. Count each dispatch attempt including retries; never run it in CI. A future live batch requires explicit task authorization and reports observed quality/usage honestly; mock results prove only orchestration.
 - Capture synthetic secret/source sentinels to prove logs/errors contain no keys, prompts, source, sensitive payloads, or raw provider bodies. Provide manual pricing/usage reconciliation, budget-warning, uncertain-charge, backup/restore, and opt-in setup steps. Document external-account billing limitations and do not claim an invoice ceiling or account balance.
 
-Phase 8 remains a **separate future operational follow-up**. The Phase 4 adapter/ledger/evaluation command does not establish model quality, exact tokenizer compatibility, automatic billing reconciliation, stale-backup detection, an invoice ceiling, or live production readiness. No real OpenAI call has been performed.
+Phase 8B remains a **separate future operational follow-up**. The Phase 4 adapter/ledger/evaluation command does not establish model quality, exact tokenizer compatibility, automatic billing reconciliation, stale-backup detection, an invoice ceiling, or live production readiness. No real OpenAI call has been performed.
 
 ## Phase 9: cloud and telemetry
 
